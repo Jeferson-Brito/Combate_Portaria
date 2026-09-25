@@ -1,0 +1,394 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Switch,
+  Image,
+} from 'react-native';
+import {
+  User,
+  FileText,
+  Phone,
+  Briefcase,
+  Car,
+  Camera,
+  MessageSquare,
+  Trash2,
+} from 'lucide-react-native';
+import { colors } from '../theme/colors';
+
+export interface VisitorFormData {
+  name: string;
+  documentType: 'CPF' | 'RG' | 'CNH' | 'OUTRO';
+  documentNumber: string;
+  phone: string;
+  company: string;
+  visitorType: string;
+  visitReason: string;
+  hasVehicle: boolean;
+  vehicleModel: string;
+  vehicleColor: string;
+  vehiclePlate: string;
+  photoBase64?: string;
+  notes: string;
+}
+
+interface VisitorFormSectionProps {
+  data: VisitorFormData;
+  onChange: (data: VisitorFormData) => void;
+}
+
+export const VisitorFormSection: React.FC<VisitorFormSectionProps> = ({ data, onChange }) => {
+  const updateField = (field: keyof VisitorFormData, value: any) => {
+    onChange({ ...data, [field]: value });
+  };
+
+  const visitorTypes = [
+    'Visitante',
+    'Prestador de serviço',
+    'Entregador',
+    'Técnico',
+    'Funcionário',
+  ];
+
+  const visitReasons = ['Visita', 'Serviço', 'Entrega', 'Manutenção', 'Reunião'];
+
+  return (
+    <View style={styles.container}>
+      {/* 1. DADOS DO VISITANTE */}
+      <Text style={styles.sectionHeader}>1. Dados do Visitante</Text>
+
+      {/* Nome Completo (Obrigatório) */}
+      <Text style={styles.label}>
+        Nome Completo <Text style={styles.required}>*</Text>
+      </Text>
+      <View style={styles.inputContainer}>
+        <User size={18} color={colors.textSecondary} style={styles.icon} />
+        <TextInput
+          style={styles.input}
+          placeholder="Ex: Carlos Eduardo Santos"
+          placeholderTextColor={colors.textMuted}
+          value={data.name}
+          onChangeText={(v) => updateField('name', v)}
+        />
+      </View>
+
+      {/* Documento (CPF / RG) */}
+      <View style={styles.row}>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={styles.label}>Documento (Opcional)</Text>
+          <View style={styles.inputContainer}>
+            <FileText size={18} color={colors.textSecondary} style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="000.000.000-00"
+              placeholderTextColor={colors.textMuted}
+              value={data.documentNumber}
+              onChangeText={(v) => updateField('documentNumber', v)}
+            />
+          </View>
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.label}>Telefone (Opcional)</Text>
+          <View style={styles.inputContainer}>
+            <Phone size={18} color={colors.textSecondary} style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="(11) 99999-9999"
+              placeholderTextColor={colors.textMuted}
+              value={data.phone}
+              onChangeText={(v) => updateField('phone', v)}
+              keyboardType="phone-pad"
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* Empresa Representada (Opcional - Seção 9) */}
+      <Text style={styles.label}>Empresa (Opcional)</Text>
+      <View style={styles.inputContainer}>
+        <Briefcase size={18} color={colors.textSecondary} style={styles.icon} />
+        <TextInput
+          style={styles.input}
+          placeholder="Ex: ABC Tecnologia / Mercado Livre"
+          placeholderTextColor={colors.textMuted}
+          value={data.company}
+          onChangeText={(v) => updateField('company', v)}
+        />
+      </View>
+
+      {/* Tipo de Visitante (Seção 10) */}
+      <Text style={styles.label}>Tipo de Visitante</Text>
+      <View style={styles.chipsRow}>
+        {visitorTypes.map((type) => (
+          <TouchableOpacity
+            key={type}
+            style={[styles.chip, data.visitorType === type && styles.chipActive]}
+            onPress={() => updateField('visitorType', type)}
+          >
+            <Text style={[styles.chipText, data.visitorType === type && styles.chipTextActive]}>
+              {type}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Motivo da Visita (Obrigatório - Seção 11) */}
+      <Text style={styles.label}>
+        Motivo da Visita <Text style={styles.required}>*</Text>
+      </Text>
+      <View style={styles.chipsRow}>
+        {visitReasons.map((reason) => (
+          <TouchableOpacity
+            key={reason}
+            style={[styles.chip, data.visitReason === reason && styles.chipActive]}
+            onPress={() => updateField('visitReason', reason)}
+          >
+            <Text style={[styles.chipText, data.visitReason === reason && styles.chipTextActive]}>
+              {reason}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* 2. SEÇÃO VEÍCULO (Seção 12) */}
+      <View style={styles.vehicleHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Car size={20} color={colors.primaryLight} style={{ marginRight: 8 }} />
+          <Text style={styles.sectionHeader}>Possui Veículo?</Text>
+        </View>
+        <Switch
+          value={data.hasVehicle}
+          onValueChange={(v) => updateField('hasVehicle', v)}
+          trackColor={{ false: colors.surfaceElevated, true: colors.primary }}
+          thumbColor={colors.white}
+        />
+      </View>
+
+      {data.hasVehicle && (
+        <View style={styles.vehicleCard}>
+          <Text style={styles.label}>
+            Modelo do Veículo <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Honda Civic, Fiat Uno"
+              placeholderTextColor={colors.textMuted}
+              value={data.vehicleModel}
+              onChangeText={(v) => updateField('vehicleModel', v)}
+            />
+          </View>
+
+          <View style={styles.row}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.label}>Cor</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: Prata"
+                  placeholderTextColor={colors.textMuted}
+                  value={data.vehicleColor}
+                  onChangeText={(v) => updateField('vehicleColor', v)}
+                />
+              </View>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Placa</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="ABC1D23"
+                  placeholderTextColor={colors.textMuted}
+                  value={data.vehiclePlate}
+                  onChangeText={(v) => updateField('vehiclePlate', v.toUpperCase())}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* 3. FOTO DO VISITANTE (Seção 14) */}
+      <Text style={styles.sectionHeader}>Foto do Visitante (Opcional)</Text>
+      <View style={styles.photoContainer}>
+        {data.photoBase64 ? (
+          <View style={styles.photoPreviewWrapper}>
+            <Image
+              source={{ uri: `data:image/jpeg;base64,${data.photoBase64}` }}
+              style={styles.photoPreview}
+            />
+            <TouchableOpacity
+              style={styles.removePhotoButton}
+              onPress={() => updateField('photoBase64', undefined)}
+            >
+              <Trash2 size={16} color={colors.white} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.captureButton}
+            onPress={() => {
+              // Simulação de foto instantânea para testes locais de portaria
+              updateField(
+                'photoBase64',
+                '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA='
+              );
+            }}
+          >
+            <Camera size={24} color={colors.primaryLight} style={{ marginBottom: 6 }} />
+            <Text style={styles.captureText}>Capturar Foto pela Câmera</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* 4. OBSERVAÇÕES (Seção 13) */}
+      <Text style={styles.label}>Observações (Opcional)</Text>
+      <View style={[styles.inputContainer, { height: 72 }]}>
+        <MessageSquare size={18} color={colors.textSecondary} style={[styles.icon, { alignSelf: 'flex-start', marginTop: 12 }]} />
+        <TextInput
+          style={[styles.input, { height: '100%', textAlignVertical: 'top', paddingTop: 8 }]}
+          placeholder="Ex: Acompanhado de mais 2 pessoas, entregando pacote"
+          placeholderTextColor={colors.textMuted}
+          value={data.notes}
+          onChangeText={(v) => updateField('notes', v)}
+          multiline
+        />
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    marginVertical: 12,
+  },
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginVertical: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 6,
+    marginTop: 8,
+  },
+  required: {
+    color: colors.statusDenied,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  icon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 14,
+  },
+  row: {
+    flexDirection: 'row',
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  chip: {
+    backgroundColor: colors.surface,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipActive: {
+    backgroundColor: 'rgba(37, 99, 235, 0.2)',
+    borderColor: colors.primaryLight,
+  },
+  chipText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  chipTextActive: {
+    color: colors.primaryLight,
+    fontWeight: '700',
+  },
+  vehicleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  vehicleCard: {
+    backgroundColor: colors.surface,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
+  },
+  photoContainer: {
+    marginVertical: 8,
+  },
+  captureButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureText: {
+    fontSize: 13,
+    color: colors.primaryLight,
+    fontWeight: '600',
+  },
+  photoPreviewWrapper: {
+    position: 'relative',
+    alignSelf: 'center',
+  },
+  photoPreview: {
+    width: 140,
+    height: 140,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.primaryLight,
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: colors.statusDenied,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

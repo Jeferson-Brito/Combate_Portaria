@@ -1,0 +1,47 @@
+export type WhatsAppConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'QR_READY' | 'CONNECTED';
+
+export interface WhatsAppStatusInfo {
+  status: WhatsAppConnectionStatus;
+  phoneConnected?: string;
+  qrCode?: string; // QR code em Base64 ou raw string
+  lastConnectedAt?: Date;
+}
+
+export interface ApprovalRequestMessageData {
+  clientName: string;
+  clientPhone: string;
+  visitorName: string;
+  visitorCompany?: string;
+  visitorType: string;
+  visitReason: string;
+  arrivalFormattedTime: string;
+  vehicleModel?: string;
+  vehiclePlate?: string;
+  requestCode: string;
+  customTemplate?: string;
+}
+
+export interface ReminderMessageData {
+  clientName: string;
+  clientPhone: string;
+  visitorName: string;
+  requestCode: string;
+  customTemplate?: string;
+}
+
+export interface IncomingMessageEvent {
+  fromPhone: string; // Número no formato E.164: ex. 5511999998888
+  text: string;
+  timestamp: Date;
+  rawMessage?: any;
+}
+
+export interface IWhatsAppProvider {
+  connect(organizationId: string): Promise<void>;
+  disconnect(organizationId: string): Promise<void>;
+  getStatus(organizationId: string): Promise<WhatsAppStatusInfo>;
+  sendApprovalRequest(data: ApprovalRequestMessageData): Promise<{ messageId: string }>;
+  sendReminder(data: ReminderMessageData): Promise<{ messageId: string }>;
+  sendMessage(toPhone: string, text: string): Promise<{ messageId: string }>;
+  onMessageReceived(callback: (msg: IncomingMessageEvent) => Promise<void>): void;
+}

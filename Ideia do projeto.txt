@@ -1,0 +1,2325 @@
+# PROJETO — SISTEMA DE CONTROLE DE ACESSO E VISITANTES
+
+Quero desenvolver um sistema profissional de **Controle de Acesso e Gestão de Visitantes**, inicialmente como aplicativo mobile em **React Native**, com backend próprio e integração com WhatsApp utilizando a biblioteca **Baileys**.
+
+O sistema deverá ser desenvolvido pensando em produção, segurança, escalabilidade e possibilidade de comercialização futura como um produto SaaS.
+
+O aplicativo deverá funcionar em:
+
+- Android
+- iOS
+
+Também quero que o projeto seja preparado para distribuição:
+
+- Google Play Store
+- Apple App Store
+- Distribuição direta fora das lojas quando tecnicamente permitida pela plataforma
+
+IMPORTANTE:
+
+O aplicativo mobile NÃO deve se comunicar diretamente com o Baileys.
+
+A arquitetura deverá ser:
+
+**React Native App → API/Backend → Banco de Dados**
+
+e
+
+**Backend → Serviço WhatsApp/Baileys → WhatsApp**
+
+O Baileys deverá funcionar exclusivamente no backend/servidor.
+
+---
+
+# 1. OBJETIVO DO SISTEMA
+
+O sistema tem como objetivo substituir processos manuais de controle de acesso realizados atualmente através de grupos de WhatsApp, ligações ou mensagens individuais.
+
+Exemplo:
+
+Um residencial possui vários apartamentos.
+
+Um visitante chega à portaria e informa:
+
+> "Vim visitar o apartamento 8."
+
+Atualmente o porteiro pode enviar uma mensagem em um grupo do WhatsApp:
+
+> "Visitante João da Silva aguardando na portaria para o apartamento 8."
+
+O morador responde:
+
+> "Pode liberar."
+
+O porteiro então permite a entrada.
+
+O novo sistema deverá automatizar e organizar todo esse processo.
+
+O porteiro deverá cadastrar a visita no aplicativo.
+
+O sistema enviará automaticamente uma mensagem pelo WhatsApp para o cliente/morador responsável pelo destino.
+
+O cliente poderá:
+
+- Autorizar
+- Recusar
+
+O resultado deverá retornar automaticamente para o sistema e aparecer para o porteiro.
+
+---
+
+# 2. O SISTEMA NÃO DEVE SER LIMITADO A RESIDENCIAIS
+
+Embora o primeiro exemplo seja um residencial/condomínio, a arquitetura deverá permitir utilização em diferentes segmentos.
+
+Exemplos:
+
+- Condomínios residenciais
+- Condomínios comerciais
+- Empresas
+- Indústrias
+- Escritórios
+- Clínicas
+- Hospitais
+- Escolas
+- Universidades
+- Hotéis
+- Centros empresariais
+- Estacionamentos
+- Eventos
+- Clubes
+- Centros logísticos
+- Portarias terceirizadas
+
+Por isso, não utilizar nomes ou regras exclusivamente relacionadas a "apartamento".
+
+Utilizar conceitos genéricos como:
+
+- Cliente
+- Destino
+- Unidade
+- Local
+- Empresa
+- Visitante
+- Solicitação
+- Portaria
+
+O sistema deve permitir configurar como esses conceitos serão utilizados.
+
+Por exemplo:
+
+Residencial:
+
+Cliente = Morador
+
+Destino = Apartamento 8
+
+Empresa:
+
+Cliente = Funcionário/Responsável
+
+Destino = Setor Financeiro
+
+Clínica:
+
+Cliente = Médico
+
+Destino = Consultório 3
+
+Escola:
+
+Cliente = Professor
+
+Destino = Sala 12
+
+---
+
+# 3. PERFIS DE ACESSO
+
+O sistema deverá possuir três níveis principais de acesso.
+
+## PORTEIRO
+
+O porteiro deverá conseguir:
+
+- Fazer login
+- Visualizar solicitações
+- Criar nova solicitação
+- Consultar clientes/destinos
+- Consultar histórico
+- Visualizar status das solicitações
+- Reenviar solicitação pelo WhatsApp
+- Visualizar autorizações
+- Visualizar recusas
+- Registrar entrada
+- Registrar saída
+- Trabalhar simultaneamente com outros porteiros
+
+O porteiro NÃO poderá:
+
+- Criar administradores
+- Criar supervisores
+- Excluir outros usuários
+- Alterar configurações críticas
+- Gerenciar toda a empresa
+- Acessar configurações administrativas
+
+---
+
+# 4. SUPERVISOR
+
+O supervisor terá todas as funções do porteiro.
+
+Além disso poderá:
+
+- Cadastrar porteiros
+- Editar porteiros
+- Desativar porteiros
+- Excluir porteiros
+- Cadastrar clientes
+- Editar clientes
+- Desativar clientes
+- Excluir clientes
+- Cadastrar destinos/unidades
+- Editar destinos/unidades
+- Consultar histórico completo
+- Consultar relatórios
+- Visualizar solicitações de todos os porteiros
+- Gerenciar pré-autorizações
+- Consultar registros de entrada e saída
+
+---
+
+# 5. ADMINISTRADOR
+
+O administrador terá acesso total.
+
+Deverá conseguir:
+
+- Gerenciar usuários
+- Gerenciar supervisores
+- Gerenciar porteiros
+- Gerenciar clientes
+- Gerenciar destinos
+- Gerenciar unidades
+- Gerenciar configurações
+- Configurar WhatsApp
+- Visualizar logs
+- Visualizar auditoria
+- Gerenciar permissões
+- Configurar templates de mensagens
+- Visualizar relatórios
+- Exportar dados
+- Gerenciar configurações da organização
+- Configurar parâmetros do sistema
+
+---
+
+# 6. LOGIN
+
+Criar uma tela de login profissional.
+
+Campos:
+
+- E-mail ou usuário
+- Senha
+
+Funcionalidades:
+
+- Login
+- Logout
+- Recuperação de senha
+- Manter sessão
+- Expiração de sessão
+- Proteção contra tentativas excessivas
+- Controle de sessão
+- Validação de permissões
+
+Utilizar autenticação segura.
+
+Nunca armazenar senha em texto puro.
+
+---
+
+# 7. TELA PRINCIPAL
+
+Após o login, o usuário deverá visualizar um dashboard.
+
+O dashboard deve ser simples e extremamente rápido para uso em portaria.
+
+Exibir:
+
+- Solicitações aguardando resposta
+- Solicitações autorizadas
+- Solicitações recusadas
+- Visitantes aguardando entrada
+- Visitantes atualmente no local
+- Visitas encerradas
+- Pré-autorizações para o dia
+- Indicadores resumidos
+
+A prioridade da interface deve ser:
+
+**Velocidade + clareza + poucos toques.**
+
+---
+
+# 8. NOVA SOLICITAÇÃO
+
+Criar um botão extremamente visível:
+
+**+ Nova Solicitação**
+
+Ao tocar, abrir o formulário de nova visita.
+
+Campos:
+
+## Visitante
+
+- Nome completo — obrigatório
+- Documento — opcional
+- Tipo de documento:
+  - CPF
+  - RG
+  - Outro
+- Foto — opcional
+- Telefone — opcional
+
+## Destino
+
+O porteiro deverá selecionar um cliente/destino já cadastrado.
+
+Exemplo:
+
+Cliente:
+
+> João da Silva
+
+Destino:
+
+> Apartamento 8
+
+O porteiro NÃO deverá precisar digitar todas as informações do cliente.
+
+Criar busca rápida/autocomplete.
+
+Ao começar a digitar:
+
+> "Jo..."
+
+mostrar os clientes correspondentes.
+
+Também permitir favoritos/recentes quando fizer sentido.
+
+---
+
+# 9. EMPRESA
+
+Campo:
+
+**Empresa**
+
+Opcional.
+
+Exemplo:
+
+> Empresa ABC Tecnologia
+
+Esse campo será utilizado principalmente quando o visitante estiver representando uma empresa.
+
+---
+
+# 10. TIPO DE VISITANTE
+
+Criar uma estrutura configurável.
+
+Exemplos:
+
+- Visitante
+- Prestador de serviço
+- Entregador
+- Técnico
+- Funcionário
+- Cliente
+- Fornecedor
+- Familiar
+- Convidado
+- Outro
+
+O administrador poderá futuramente alterar esses tipos.
+
+---
+
+# 11. MOTIVO DA VISITA
+
+Campo obrigatório.
+
+Permitir opções pré-configuradas e opção "Outro".
+
+Exemplos:
+
+- Visita
+- Reunião
+- Serviço
+- Entrega
+- Manutenção
+- Atendimento
+- Consulta
+- Outro
+
+---
+
+# 12. VEÍCULO
+
+Criar seção opcional:
+
+Veículo:
+
+- Possui veículo? Sim/Não
+- Modelo
+- Cor
+- Placa
+
+Modelo obrigatório caso possua veículo.
+
+Cor opcional.
+
+Placa opcional.
+
+---
+
+# 13. OBSERVAÇÕES
+
+Campo opcional para informações adicionais.
+
+Exemplo:
+
+> "Está acompanhado de duas pessoas."
+
+---
+
+# 14. FOTO DO VISITANTE
+
+Permitir tirar foto usando a câmera do celular.
+
+Também permitir escolher uma foto da galeria quando permitido.
+
+A foto será opcional.
+
+Implementar corretamente:
+
+- Permissões da câmera
+- Compressão
+- Upload seguro
+- Armazenamento
+- Controle de acesso
+- Exclusão conforme política de retenção
+
+Não armazenar imagens diretamente dentro do banco de dados.
+
+Utilizar armazenamento de arquivos apropriado.
+
+---
+
+# 15. ENVIO DA SOLICITAÇÃO
+
+Após preencher os dados, mostrar uma tela de confirmação antes do envio.
+
+Exibir resumo:
+
+Visitante:
+
+> João da Silva
+
+Destino:
+
+> Apartamento 8
+
+Tipo:
+
+> Visitante
+
+Motivo:
+
+> Visita
+
+Veículo:
+
+> Honda Civic — Prata
+
+Placa:
+
+> ABC1D23
+
+Depois:
+
+**Enviar solicitação**
+
+---
+
+# 16. CRIAÇÃO DA SOLICITAÇÃO
+
+Ao enviar:
+
+Criar uma solicitação no backend.
+
+A solicitação deverá possuir um identificador único.
+
+Exemplo:
+
+REQUEST-2026-000123
+
+Registrar:
+
+- ID
+- Organização
+- Porteiro
+- Cliente
+- Destino
+- Visitante
+- Data
+- Hora
+- Dados enviados
+- Status
+- Data de criação
+- Data de resposta
+- Tempo de espera
+- Histórico de eventos
+
+---
+
+# 17. STATUS DA SOLICITAÇÃO
+
+Criar estados claros.
+
+Sugestão:
+
+PENDING
+
+Aguardando resposta.
+
+AUTHORIZED
+
+Autorizado.
+
+DENIED
+
+Recusado.
+
+EXPIRED
+
+Expirado.
+
+CANCELLED
+
+Cancelado.
+
+ENTERED
+
+Visitante entrou.
+
+EXITED
+
+Visitante saiu.
+
+PRE\_AUTHORIZED
+
+Pré-autorizado.
+
+FAILED
+
+Falha no processamento.
+
+Também poderá existir um estado específico para quando o WhatsApp não conseguir entregar a mensagem.
+
+---
+
+# 18. WHATSAPP + BAILEYS
+
+A integração com WhatsApp deverá ser feita exclusivamente no backend.
+
+Utilizar:
+
+**Baileys**
+
+O sistema deverá possuir um serviço separado para WhatsApp.
+
+Exemplo:
+
+backend/
+
+whatsapp-service/
+
+api/
+
+mobile/
+
+database/
+
+etc.
+
+O serviço WhatsApp deverá ser responsável por:
+
+- Conectar ao WhatsApp
+- Manter sessão
+- Gerar QR Code quando necessário
+- Reconectar
+- Detectar desconexões
+- Enviar mensagens
+- Receber mensagens
+- Processar respostas
+- Identificar clientes
+- Registrar eventos
+- Controlar erros
+
+---
+
+# 19. PAREAMENTO DO WHATSAPP
+
+O administrador deverá possuir uma tela:
+
+**Configuração do WhatsApp**
+
+Mostrar:
+
+- Status da conexão
+- Conectado
+- Desconectado
+- Conectando
+- Última conexão
+- Número conectado
+
+Quando necessário:
+
+**Exibir QR Code para conectar o WhatsApp.**
+
+O sistema deverá armazenar a sessão de forma segura.
+
+Não pedir para o porteiro configurar o WhatsApp.
+
+Essa configuração deverá ser administrativa.
+
+---
+
+# 20. MENSAGEM ENVIADA AO CLIENTE
+
+Quando uma solicitação for criada, o sistema deverá enviar uma mensagem ao WhatsApp do cliente.
+
+Exemplo:
+
+"Olá, João!
+
+Há um visitante aguardando sua autorização na portaria.
+
+Visitante: Carlos Eduardo
+Empresa: ABC Tecnologia
+Tipo: Prestador de serviço
+Motivo: Manutenção
+Horário de chegada: 14:35
+
+Veículo: Honda Civic
+Cor: Prata
+Placa: ABC1D23
+
+Deseja autorizar a entrada?"
+
+A mensagem deverá possuir opções de resposta.
+
+Exemplo:
+
+✅ AUTORIZAR
+
+❌ RECUSAR
+
+A implementação deverá utilizar os recursos suportados pelo WhatsApp/Baileys no momento da implementação.
+
+Não assumir que determinados tipos de botões ou interações são permanentemente suportados.
+
+Criar uma camada de abstração para mensagens para permitir alteração futura.
+
+---
+
+# 21. RESPOSTA DO CLIENTE
+
+Quando o cliente responder:
+
+AUTORIZAR
+
+ou
+
+RECUSAR
+
+o backend deverá identificar a solicitação correspondente.
+
+Atualizar o banco de dados.
+
+Exemplo:
+
+Status:
+
+AUTHORIZED
+
+Registrar:
+
+- Quem respondeu
+- Número do WhatsApp
+- Data
+- Hora
+- Mensagem recebida
+- Solicitação relacionada
+
+---
+
+# 22. NOTIFICAÇÃO AO PORTEIRO
+
+Após a decisão do cliente, o aplicativo deverá atualizar automaticamente.
+
+Exemplo:
+
+🟢 Entrada autorizada
+
+Visitante:
+
+Carlos Eduardo
+
+Cliente:
+
+João da Silva
+
+Horário:
+
+14:38
+
+Também deverá ser possível utilizar notificações push para informar o porteiro.
+
+---
+
+# 23. RECUSA
+
+Caso o cliente recuse:
+
+🔴 Entrada recusada
+
+O porteiro deverá receber a informação imediatamente.
+
+Registrar o evento no histórico.
+
+---
+
+# 24. SOLICITAÇÕES EM ABERTO
+
+Essa é uma das partes mais importantes do sistema.
+
+Criar uma tela:
+
+**Solicitações em aberto**
+
+Ela deverá mostrar TODAS as solicitações aguardando resposta.
+
+Exemplo:
+
+### João da Silva
+
+Visitante: Carlos Eduardo
+
+⏱ Aguardando há 02:35
+
+Porteiro: Marcos
+
+[Reenviar mensagem]
+
+---
+
+### Maria Oliveira
+
+Visitante: Pedro Santos
+
+⏱ Aguardando há 05:12
+
+Porteiro: Ana
+
+[Reenviar mensagem]
+
+---
+
+Se houver 10 solicitações:
+
+Mostrar as 10.
+
+Não limitar apenas às solicitações criadas pelo porteiro atual.
+
+Usuários autorizados deverão conseguir visualizar solicitações conforme suas permissões.
+
+---
+
+# 25. TEMPO DE ESPERA
+
+Cada solicitação aberta deverá mostrar o tempo decorrido.
+
+Exemplo:
+
+Aguardando há:
+
+00:42
+
+02:18
+
+05:34
+
+15:22
+
+O contador deverá atualizar automaticamente.
+
+Ao fechar/reabrir o aplicativo, o tempo deverá continuar correto.
+
+O cálculo deverá ser baseado no horário registrado no servidor e não apenas no relógio do celular.
+
+---
+
+# 26. REENVIAR MENSAGEM
+
+Cada solicitação pendente deverá possuir:
+
+**Reenviar mensagem**
+
+Ao tocar:
+
+- Mostrar confirmação
+- Enviar novamente pelo WhatsApp
+- Registrar o evento
+- Atualizar contador de lembretes
+
+Exemplo:
+
+"Mensagem reenviada às 14:42."
+
+Evitar spam.
+
+Criar limite configurável de reenvios.
+
+Exemplo:
+
+Máximo de 3 lembretes em determinado intervalo.
+
+O administrador poderá configurar essa regra.
+
+---
+
+# 27. PRÉ-AUTORIZAÇÃO
+
+Essa funcionalidade é obrigatória.
+
+O cliente pode avisar previamente:
+
+> "Hoje às 15h virá Carlos da empresa ABC."
+
+O porteiro deverá conseguir criar uma:
+
+**Pré-autorização**
+
+Campos:
+
+- Cliente
+- Visitante
+- Empresa
+- Telefone
+- Tipo
+- Data
+- Horário inicial
+- Horário final
+- Motivo
+- Veículo
+- Observações
+
+Quando o visitante chegar:
+
+O porteiro poderá pesquisar pelo nome/documento/empresa.
+
+Encontrando a pré-autorização:
+
+**Visitante pré-autorizado.**
+
+O sistema poderá permitir a entrada sem nova aprovação, conforme regra configurada.
+
+Registrar tudo no histórico.
+
+---
+
+# 28. HISTÓRICO
+
+Criar tela:
+
+**Histórico**
+
+Filtros:
+
+- Data
+- Cliente
+- Visitante
+- Porteiro
+- Status
+- Tipo de visitante
+- Empresa
+- Placa
+- Destino
+
+Exibir:
+
+- Visitante
+- Cliente
+- Destino
+- Porteiro
+- Data
+- Horário
+- Status
+- Tempo de atendimento
+
+Ao tocar em uma solicitação:
+
+Abrir detalhes completos.
+
+---
+
+# 29. DETALHES DA SOLICITAÇÃO
+
+Mostrar:
+
+## Visitante
+
+Nome
+
+Documento
+
+Telefone
+
+Foto
+
+Empresa
+
+Tipo
+
+Motivo
+
+## Destino
+
+Cliente
+
+Unidade/local
+
+## Veículo
+
+Modelo
+
+Cor
+
+Placa
+
+## Solicitação
+
+Porteiro responsável
+
+Data
+
+Hora
+
+Status
+
+Tempo de espera
+
+## Aprovação
+
+Data/hora
+
+Resposta
+
+Canal
+
+## Eventos
+
+Criar uma timeline:
+
+14:35 — Solicitação criada
+
+14:35 — WhatsApp enviado
+
+14:37 — Mensagem recebida
+
+14:37 — Entrada autorizada
+
+14:38 — Visitante entrou
+
+15:42 — Visitante saiu
+
+---
+
+# 30. ENTRADA E SAÍDA
+
+Após autorização, o porteiro deverá conseguir registrar:
+
+**Registrar entrada**
+
+Depois:
+
+**Registrar saída**
+
+Assim será possível saber quem está atualmente dentro do local.
+
+Criar tela:
+
+**Visitantes presentes**
+
+Mostrar:
+
+- Visitante
+- Cliente
+- Destino
+- Horário de entrada
+- Veículo
+- Porteiro
+
+E botão:
+
+**Registrar saída**
+
+---
+
+# 31. MÚLTIPLOS PORTEIROS
+
+O sistema deverá suportar vários porteiros simultaneamente.
+
+Exemplo:
+
+Porteiro A cria solicitação 001.
+
+Porteiro B cria solicitação 002.
+
+Porteiro C cria solicitação 003.
+
+Todos poderão trabalhar simultaneamente.
+
+Não permitir conflito de dados.
+
+As solicitações deverão ser armazenadas no servidor.
+
+Utilizar WebSocket ou tecnologia equivalente para atualização em tempo real.
+
+Quando uma solicitação for autorizada:
+
+Todos os usuários autorizados que estiverem visualizando a tela deverão receber a atualização.
+
+---
+
+# 32. CLIENTES
+
+Criar gerenciamento de clientes.
+
+Campos sugeridos:
+
+- Nome
+- Telefone WhatsApp
+- E-mail
+- Documento
+- Empresa
+- Unidade/destino
+- Status
+- Observações
+
+O número do WhatsApp deverá ser validado.
+
+Um cliente poderá possuir mais de um destino/unidade se necessário.
+
+---
+
+# 33. DESTINOS / UNIDADES
+
+Criar estrutura genérica.
+
+Exemplo residencial:
+
+Apartamento 1
+Apartamento 2
+Apartamento 3
+
+Exemplo empresa:
+
+Recepção
+Financeiro
+RH
+Diretoria
+
+O administrador/supervisor poderá cadastrar:
+
+- Nome
+- Código
+- Descrição
+- Cliente responsável
+- Status
+
+---
+
+# 34. ORGANIZAÇÕES
+
+Como o sistema poderá futuramente ser comercializado, preparar arquitetura multi-tenant.
+
+Uma organização poderá representar:
+
+- Condomínio
+- Empresa
+- Clínica
+- Escola
+- Hotel etc.
+
+Todos os dados deverão estar vinculados à organização.
+
+Nenhum usuário de uma organização poderá acessar dados de outra organização.
+
+Estruturar isso desde o início.
+
+---
+
+# 35. BANCO DE DADOS
+
+Utilizar PostgreSQL.
+
+Criar migrations.
+
+Criar relacionamentos adequados.
+
+Principais entidades:
+
+organizations
+
+users
+
+roles
+
+permissions
+
+clients
+
+destinations
+
+visitors
+
+visit\_requests
+
+visit\_pre\_authorizations
+
+vehicles
+
+whatsapp\_connections
+
+whatsapp\_messages
+
+notifications
+
+visit\_events
+
+audit\_logs
+
+settings
+
+message\_templates
+
+Criar chaves estrangeiras e índices apropriados.
+
+Não duplicar informações desnecessariamente.
+
+---
+
+# 36. AUDITORIA
+
+Toda ação importante deverá ser registrada.
+
+Exemplos:
+
+- Login
+- Logout
+- Criação de usuário
+- Alteração de usuário
+- Exclusão
+- Criação de cliente
+- Alteração de cliente
+- Criação de solicitação
+- Cancelamento
+- Autorização
+- Recusa
+- Reenvio de mensagem
+- Pré-autorização
+- Entrada
+- Saída
+- Alteração de configuração
+
+Registrar:
+
+- Usuário
+- Data/hora
+- Ação
+- Entidade
+- ID da entidade
+- Dados relevantes
+- IP quando aplicável
+
+---
+
+# 37. SEGURANÇA
+
+Implementar:
+
+- HTTPS
+- JWT ou mecanismo moderno equivalente
+- Refresh token quando apropriado
+- Hash seguro de senhas
+- RBAC
+- Validação de entrada
+- Rate limiting
+- Proteção contra brute force
+- Sanitização
+- Controle de permissões
+- Logs
+- Auditoria
+- Proteção de arquivos
+- Controle de acesso às imagens
+- Segregação por organização
+
+Nunca confiar apenas nas permissões do aplicativo.
+
+Toda permissão deverá ser validada também no backend.
+
+---
+
+# 38. API
+
+Criar uma API REST organizada.
+
+Exemplos:
+
+POST /auth/login
+
+POST /auth/refresh
+
+GET /dashboard
+
+GET /clients
+
+POST /clients
+
+PUT /clients/
+
+DELETE /clients/
+
+GET /destinations
+
+POST /destinations
+
+GET /visitors
+
+POST /visitors
+
+GET /visit-requests
+
+POST /visit-requests
+
+GET /visit-requests/
+
+POST /visit-requests//remind
+
+POST /visit-requests//cancel
+
+POST /visit-requests//entry
+
+POST /visit-requests//exit
+
+GET /pre-authorizations
+
+POST /pre-authorizations
+
+PUT /pre-authorizations/
+
+DELETE /pre-authorizations/
+
+GET /history
+
+GET /notifications
+
+Criar endpoints adicionais conforme necessário.
+
+---
+
+# 39. TEMPO REAL
+
+Implementar atualização em tempo real.
+
+Quando ocorrer:
+
+- Nova solicitação
+- Autorização
+- Recusa
+- Novo lembrete
+- Entrada
+- Saída
+
+O aplicativo deverá atualizar automaticamente.
+
+Avaliar utilização de:
+
+- WebSocket
+- Socket.IO
+
+ou solução equivalente.
+
+---
+
+# 40. NOTIFICAÇÕES PUSH
+
+Implementar suporte a notificações push.
+
+Exemplos:
+
+"Nova solicitação aguardando autorização."
+
+"Entrada autorizada."
+
+"Entrada recusada."
+
+"Visitante aguardando há 10 minutos."
+
+As notificações deverão respeitar permissões do usuário.
+
+---
+
+# 41. DESIGN / UX
+
+O aplicativo deverá ter aparência profissional de um produto SaaS comercial.
+
+Não quero aparência de projeto escolar.
+
+Priorizar:
+
+- Interface limpa
+- Moderna
+- Profissional
+- Rápida
+- Poucos elementos desnecessários
+- Boa hierarquia visual
+- Tipografia clara
+- Botões grandes para uso em portaria
+- Boa acessibilidade
+- Feedback visual imediato
+- Loading states
+- Empty states
+- Skeleton loading
+- Mensagens de erro amigáveis
+- Confirmações antes de ações destrutivas
+
+A interface deve funcionar muito bem em celulares.
+
+---
+
+# 42. TELA DE NOVA VISITA
+
+Essa tela deve ser extremamente otimizada.
+
+O porteiro está trabalhando na portaria e pode estar sob pressão.
+
+Evitar formulário excessivamente complicado.
+
+Organizar em etapas/seções:
+
+1. Destino
+2. Visitante
+3. Motivo
+4. Veículo
+5. Observações
+6. Confirmação
+
+Campos opcionais não devem atrapalhar o fluxo.
+
+O botão:
+
+**Enviar solicitação**
+
+deve permanecer facilmente acessível.
+
+---
+
+# 43. BUSCA RÁPIDA
+
+A busca de clientes deve ser extremamente rápida.
+
+Permitir procurar por:
+
+- Nome
+- Unidade
+- Telefone
+- Código
+- Empresa
+
+Exemplo:
+
+Digite:
+
+"8"
+
+Mostrar:
+
+Apartamento 8 — João Silva
+
+---
+
+# 44. CONFIGURAÇÃO DO WHATSAPP
+
+Criar área administrativa.
+
+Mostrar:
+
+WhatsApp
+
+Status:
+
+🟢 Conectado
+
+Número:
+
++55 XX XXXXX-XXXX
+
+Última conexão:
+
+23/09/2026 14:20
+
+Botões:
+
+- Conectar WhatsApp
+- Reconectar
+- Desconectar
+
+Ao clicar em conectar:
+
+Mostrar QR Code.
+
+---
+
+# 45. TEMPLATES DE MENSAGENS
+
+Criar sistema de templates.
+
+Exemplo:
+
+{{cliente}}
+
+{{visitante}}
+
+{{empresa}}
+
+{{tipo}}
+
+{{motivo}}
+
+{{horario}}
+
+{{veiculo}}
+
+{{placa}}
+
+O administrador poderá configurar a mensagem.
+
+Exemplo:
+
+"Olá {{cliente}}, chegou um visitante para você..."
+
+---
+
+# 46. TRATAMENTO DE FALHAS DO WHATSAPP
+
+O sistema NÃO deve simplesmente quebrar se o WhatsApp estiver desconectado.
+
+Caso o WhatsApp esteja offline:
+
+Mostrar:
+
+"WhatsApp desconectado."
+
+A solicitação deverá continuar salva.
+
+Status:
+
+Aguardando envio
+
+ou
+
+Falha no envio
+
+Quando o WhatsApp voltar:
+
+Processar mensagens pendentes de forma segura.
+
+Implementar fila de mensagens.
+
+Não enviar mensagens duplicadas.
+
+---
+
+# 47. IDEMPOTÊNCIA
+
+Implementar mecanismos para impedir duplicação.
+
+Exemplo:
+
+Se o servidor receber duas vezes o mesmo evento do WhatsApp:
+
+Não criar duas autorizações.
+
+A mesma solicitação deverá permanecer com apenas uma decisão válida.
+
+---
+
+# 48. CONCORRÊNCIA
+
+Considerar cenários como:
+
+Porteiro A visualiza uma solicitação.
+
+Porteiro B também visualiza.
+
+Cliente autoriza.
+
+Ambos recebem a autorização.
+
+Não permitir que uma ação posterior incorreta sobrescreva o resultado.
+
+Criar máquina de estados consistente para as solicitações.
+
+---
+
+# 49. PRIVACIDADE
+
+O sistema armazenará dados pessoais.
+
+Considerar princípios da LGPD.
+
+Criar estrutura para:
+
+- Controle de acesso
+- Retenção de dados
+- Exclusão
+- Anonimização quando aplicável
+- Logs
+- Consentimento quando necessário
+- Proteção de documentos
+- Proteção de fotos
+
+Não deixar documentos e fotos acessíveis publicamente.
+
+---
+
+# 50. DISTRIBUIÇÃO DO APLICATIVO
+
+Preparar o projeto React Native para:
+
+Android:
+
+- APK para testes/distribuição direta
+- AAB para Google Play
+
+iOS:
+
+- Build para App Store
+- TestFlight
+- Avaliar opções oficiais de distribuição fora da App Store conforme o cenário de distribuição e região
+
+IMPORTANTE:
+
+Não assumir que "enviar um link para download" funciona da mesma maneira no Android e no iOS.
+
+No Android, preparar possibilidade de distribuição direta de APK, respeitando as configurações de segurança do dispositivo.
+
+No iOS, documentar claramente as limitações da instalação direta e utilizar mecanismos oficiais da Apple quando necessário.
+
+O projeto deve ter documentação explicando essas diferenças.
+
+---
+
+# 51. BACKEND
+
+Utilizar uma arquitetura profissional.
+
+Sugestão:
+
+Node.js
+
+TypeScript
+
+Framework backend moderno, como NestJS ou Fastify/Express estruturado.
+
+Escolher a opção mais adequada e explicar brevemente a decisão.
+
+Separar responsabilidades:
+
+Auth
+
+Users
+
+Organizations
+
+Clients
+
+Destinations
+
+Visitors
+
+Visit Requests
+
+Pre-authorizations
+
+Notifications
+
+WhatsApp
+
+Audit
+
+Reports
+
+---
+
+# 52. SERVIÇO WHATSAPP
+
+Criar o WhatsApp como módulo/serviço isolado.
+
+Exemplo:
+
+/services/whatsapp
+
+Responsável por:
+
+connection
+
+authentication
+
+session
+
+messaging
+
+receiving
+
+event processing
+
+reconnection
+
+message queue
+
+message templates
+
+Não colocar código do Baileys dentro dos componentes React Native.
+
+---
+
+# 53. ESTRUTURA DO PROJETO
+
+Criar uma estrutura organizada.
+
+Exemplo:
+
+/mobile
+
+/backend
+
+/whatsapp-service
+
+/database
+
+/docs
+
+/scripts
+
+/test
+
+A estrutura poderá ser adaptada conforme a arquitetura escolhida.
+
+Não criar centenas de arquivos desnecessários.
+
+Manter separação clara de responsabilidades.
+
+---
+
+# 54. TECNOLOGIAS
+
+Utilizar:
+
+React Native
+
+TypeScript
+
+Banco de dados será o Supabase. Após finalizar tudo quero que dê o passo a passo do que configurar lá no supabase.
+
+O servidor que vamos utilizar será o render, então prepare o projeto desde já para usarmos o render. Após finalizar tudo quero que dê o passo a passo do que configurar lá no render.
+
+Node.js
+
+Baileys
+
+REST API
+
+WebSocket/Socket.IO
+
+Push Notifications
+
+Storage para fotos
+
+Escolher bibliotecas adicionais somente quando realmente necessárias.
+
+Antes de instalar uma biblioteca, verificar se existe alternativa nativa ou se a dependência é realmente necessária.
+
+---
+
+# 55. TESTES
+
+Criar testes.
+
+Testar principalmente:
+
+- Login
+- Permissões
+- Criação de solicitação
+- Autorização
+- Recusa
+- Reenvio
+- Pré-autorização
+- Entrada
+- Saída
+- Histórico
+- Múltiplos porteiros
+- Concorrência
+- WhatsApp desconectado
+- Reconexão
+- Mensagem duplicada
+- Organização diferente
+- Permissões de usuário
+
+Criar testes unitários e de integração onde fizer sentido.
+
+---
+
+# 56. SEED
+
+Criar seed inicial para desenvolvimento.
+
+Exemplo:
+
+Organização:
+
+"Residencial Exemplo"
+
+Administrador:
+
+[admin@example.com](mailto\:admin@example.com)
+
+Supervisor:
+
+[supervisor@example.com](mailto\:supervisor@example.com)
+
+Porteiro:
+
+[porteiro@example.com](mailto\:porteiro@example.com)
+
+Criar alguns clientes:
+
+João Silva — Apartamento 1
+
+Maria Silva — Apartamento 2
+
+Carlos Souza — Apartamento 8
+
+Criar dados fictícios de visitantes.
+
+Não utilizar senhas reais.
+
+---
+
+# 57. README
+
+Criar documentação completa explicando:
+
+- Como instalar
+- Como configurar
+- Como executar
+- Como criar banco
+- Como executar migrations
+- Como executar seed
+- Como configurar variáveis de ambiente
+- Como conectar WhatsApp
+- Como gerar QR Code
+- Como executar backend
+- Como executar React Native
+- Como gerar APK
+- Como gerar AAB
+- Como gerar build iOS
+- Como configurar notificações
+- Como fazer deploy
+- Como configurar produção
+
+---
+
+# 58. VARIÁVEIS DE AMBIENTE
+
+Utilizar .env.
+
+Exemplos:
+
+DATABASE\_URL
+
+JWT\_SECRET
+
+WHATSAPP\_SESSION\_PATH
+
+STORAGE\_URL
+
+STORAGE\_KEY
+
+PUSH\_NOTIFICATION\_CONFIG
+
+API\_URL
+
+NODE\_ENV
+
+Nunca colocar:
+
+- Senhas
+- Tokens
+- Chaves privadas
+- Credenciais
+
+diretamente no código.
+
+Adicionar .env.example.
+
+---
+
+# 59. ARQUITETURA PREPARADA PARA CRESCIMENTO
+
+Não criar o sistema pensando apenas em um residencial com 10 apartamentos.
+
+Ele deverá suportar futuramente:
+
+10 clientes
+
+100 clientes
+
+1.000 clientes
+
+10.000 clientes
+
+e múltiplas organizações.
+
+Utilizar paginação.
+
+Índices no banco.
+
+Filtros no backend.
+
+Não carregar todo o histórico de uma vez.
+
+---
+
+# 60. RELATÓRIOS
+
+Criar estrutura para relatórios.
+
+Exemplos:
+
+- Total de visitantes
+- Autorizações
+- Recusas
+- Tempo médio de aprovação
+- Visitantes por período
+- Visitantes por cliente
+- Visitantes por porteiro
+- Empresas que mais visitam
+- Horários de maior movimento
+
+Filtros por:
+
+- Dia
+- Semana
+- Mês
+- Período personalizado
+
+---
+
+# 61. REGRAS IMPORTANTES
+
+Não excluir dados críticos fisicamente sem necessidade.
+
+Preferir soft delete quando apropriado.
+
+Exemplo:
+
+deleted\_at
+
+ou
+
+active = false
+
+Manter histórico das solicitações.
+
+Uma solicitação autorizada não poderá simplesmente desaparecer.
+
+---
+
+# 62. EXPERIÊNCIA DO PORTEIRO
+
+A prioridade absoluta da aplicação deve ser:
+
+1. Identificar visitante
+2. Encontrar destino
+3. Preencher dados necessários
+4. Enviar
+5. Aguardar resposta
+6. Visualizar autorização/recusa
+7. Registrar entrada
+8. Registrar saída
+
+Esse fluxo precisa ser muito rápido.
+
+---
+
+# 63. DASHBOARD DE PORTARIA
+
+Criar seções:
+
+### Aguardando autorização
+
+Lista das solicitações pendentes.
+
+### Autorizados
+
+Visitantes autorizados aguardando entrada.
+
+### Presentes
+
+Visitantes atualmente dentro do local.
+
+### Recentes
+
+Últimas solicitações.
+
+---
+
+# 64. CORES DE STATUS
+
+Utilizar indicadores visuais consistentes.
+
+Pendente:
+
+🟡
+
+Autorizado:
+
+🟢
+
+Recusado:
+
+🔴
+
+Visitante presente:
+
+🔵
+
+Expirado:
+
+⚪
+
+Não depender apenas das cores; utilizar também texto/ícones para acessibilidade.
+
+---
+
+# 65. RESPONSIVIDADE
+
+O aplicativo deverá funcionar bem em:
+
+- Smartphones pequenos
+- Smartphones grandes
+- Tablets
+
+Considerar orientação e diferentes densidades de tela.
+
+---
+
+# 66. PERFORMANCE
+
+O aplicativo deverá:
+
+- Abrir rapidamente
+- Evitar renders desnecessários
+- Paginar listas
+- Utilizar cache quando apropriado
+- Otimizar imagens
+- Não bloquear a interface
+- Processar operações pesadas no backend
+
+---
+
+# 67. OFFLINE
+
+Avaliar suporte offline.
+
+O aplicativo deverá pelo menos conseguir:
+
+- Informar quando não houver conexão
+- Evitar perda de dados
+- Reprocessar operações quando possível
+
+Não permitir que o porteiro pense que uma solicitação foi enviada quando ela não chegou ao servidor.
+
+Mostrar claramente:
+
+"Enviando..."
+
+"Enviado"
+
+"Falha ao enviar"
+
+---
+
+# 68. EXPERIÊNCIA DE ERRO
+
+Não mostrar mensagens técnicas como:
+
+"500 Internal Server Error"
+
+Para o porteiro.
+
+Mostrar:
+
+"Não foi possível enviar a solicitação. Verifique sua conexão e tente novamente."
+
+Para administradores/desenvolvedores, registrar o erro técnico nos logs.
+
+---
+
+# 69. FUTURO
+
+A arquitetura deve permitir futuramente adicionar:
+
+- QR Code para visitantes
+- Convites digitais
+- Leitor de documentos
+- Reconhecimento de placa
+- Controle de prestadores
+- Controle de encomendas
+- Controle de veículos
+- Biometria
+- Integração com câmeras
+- Integração com catracas
+- Integração com leitores RFID
+- Integração com sistemas externos
+- API pública
+- Portal web administrativo
+- Aplicativo do cliente
+- Relatórios avançados
+- Assinatura digital
+
+Não implementar essas funcionalidades agora, mas não criar uma arquitetura que impeça sua implementação futura.
+
+---
+
+# 70. IMPORTANTE SOBRE O WHATSAPP
+
+O sistema deverá tratar a integração com WhatsApp como uma dependência externa sujeita às regras e mudanças do WhatsApp.
+
+O Baileys é uma biblioteca que interage com o WhatsApp Web e não deve ser tratado como uma API oficial do WhatsApp.
+
+Implementar a integração de forma desacoplada para que futuramente seja possível substituir Baileys por outra solução, inclusive uma API oficial, sem precisar reescrever todo o sistema.
+
+Criar uma interface como:
+
+WhatsAppProvider
+
+com métodos semelhantes a:
+
+connect()
+
+disconnect()
+
+sendMessage()
+
+sendApprovalRequest()
+
+sendReminder()
+
+handleIncomingMessage()
+
+getConnectionStatus()
+
+Dessa maneira, futuramente poderá existir:
+
+BaileysProvider
+
+OfficialWhatsAppProvider
+
+etc.
+
+---
+
+# 71. ORDEM DE DESENVOLVIMENTO
+
+NÃO começar simplesmente criando todas as telas.
+
+Primeiro:
+
+1. Analisar requisitos
+2. Definir arquitetura
+3. Definir banco de dados Supabase
+4. Definir servidor render
+5. Definir entidades
+6. Definir permissões
+7. Definir máquina de estados das solicitações
+8. Definir API
+9. Definir arquitetura do WhatsApp
+10. Definir estrutura React Native
+11. Criar plano de implementação
+
+Depois implementar em etapas.
+
+---
+
+# 72. IMPLEMENTAÇÃO POR FASES
+
+## FASE 1
+
+Base do projeto:
+
+- React Native
+- Backend
+- Banco de dados Supabase
+- Autenticação
+- Usuários
+- Organizações
+- RBAC
+
+## FASE 2
+
+Clientes:
+
+- CRUD
+- Destinos
+- Busca
+
+## FASE 3
+
+Visitantes:
+
+- Cadastro
+- Fotos
+- Veículos
+
+## FASE 4
+
+Solicitações:
+
+- Criar
+- Listar
+- Status
+- Histórico
+
+## FASE 5
+
+WhatsApp:
+
+- Baileys
+- Conexão
+- QR Code
+- Envio
+- Recebimento
+- Autorização
+- Recusa
+
+## FASE 6
+
+Tempo real:
+
+- WebSocket
+- Atualizações
+- Notificações
+
+## FASE 7
+
+Pré-autorização.
+
+## FASE 8
+
+Entrada e saída.
+
+## FASE 9
+
+Relatórios.
+
+## FASE 10
+
+Segurança, testes e otimização.
+
+## FASE 11
+
+Build Android/iOS.
+
+---
+
+# 73. REGRA FUNDAMENTAL DO DESENVOLVIMENTO
+
+Não apagar funcionalidades existentes para implementar uma nova funcionalidade.
+
+Não substituir uma arquitetura inteira sem necessidade.
+
+Antes de modificar arquivos importantes:
+
+- analisar o código existente
+- entender dependências
+- identificar impactos
+- criar plano
+- implementar de forma incremental
+
+Se já existir um projeto, preservar o que estiver funcionando.
+
+---
+
+# 74. QUALIDADE DO CÓDIGO
+
+O código deve ser:
+
+- TypeScript
+- Tipado
+- Modular
+- Legível
+- Organizado
+- Testável
+- Seguro
+
+Evitar:
+
+- any desnecessário
+- código duplicado
+- funções gigantes
+- componentes gigantes
+- regras de negócio dentro da UI
+- credenciais no código
+- consultas SQL espalhadas pela aplicação
+
+---
+
+# 75. RESULTADO ESPERADO
+
+Quero terminar com um produto funcional de controle de acesso.
+
+O fluxo principal deve ser:
+
+PORTEIRO
+
+↓
+
+Login
+
+↓
+
+Nova Solicitação
+
+↓
+
+Seleciona Cliente/Destino
+
+↓
+
+Preenche visitante
+
+↓
+
+Preenche motivo
+
+↓
+
+Preenche veículo, se houver
+
+↓
+
+Confirma
+
+↓
+
+Backend salva
+
+↓
+
+WhatsApp envia mensagem
+
+↓
+
+Cliente recebe
+
+↓
+
+Cliente autoriza ou recusa
+
+↓
+
+Backend recebe resposta
+
+↓
+
+Solicitação é atualizada
+
+↓
+
+Porteiro recebe atualização
+
+↓
+
+Porteiro registra entrada
+
+↓
+
+Visitante entra
+
+↓
+
+Porteiro registra saída
+
+↓
+
+Histórico fica salvo
+
+Todo esse fluxo deve ser rastreável.
+
+---
+
+# 76. PRIMEIRA ENTREGA
+
+Antes de implementar tudo, apresente:
+
+1. Arquitetura proposta
+2. Stack escolhida
+3. Estrutura de pastas
+4. Modelo de banco
+5. Diagrama dos principais fluxos
+6. Máquina de estados das solicitações
+7. Matriz de permissões
+8. Endpoints
+9. Estratégia do WhatsApp/Baileys
+10. Estratégia de notificações
+11. Estratégia de autenticação
+12. Estratégia multi-tenant
+13. Plano de desenvolvimento por etapas
+
+Depois de apresentar o plano, aguarde minha aprovação antes de iniciar uma implementação grande.
+
+Se eu aprovar, implemente fase por fase.
+
+Não tente gerar o projeto inteiro de uma única vez.
+
+Ao final de cada fase:
+
+- executar testes
+- corrigir erros
+- verificar build
+- documentar alterações
+- informar quais arquivos foram criados/modificados
+- informar como testar
+
+O objetivo é criar um sistema realmente utilizável em produção, e não apenas uma demonstração visual.

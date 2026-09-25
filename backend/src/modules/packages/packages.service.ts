@@ -1,0 +1,218 @@
+import { prisma } from '../../lib/prisma.js';
+import { realtimeService } from '../../services/realtime/realtime.service.js';
+import { whatsappService } from '../../services/whatsapp/whatsapp.service.js';
+
+export interface CreatePackageDTO {
+  destinationId: string;
+  clientId?: string;
+  trackingCode?: string;
+  carrier?: string;
+  recipientName?: string;
+  sender?: string;
+  photoUrl?: string;
+  notes?: string;
+  conciergeUserId: string;
+  organizationId: string;
+}
+
+export class PackagesService {
+  // Gera código sequencial amigável: ENC-2026-000001
+  private async generatePackageCode(organizationId: string): Promise<string> {
+    const year = new Date().getFullYear();
+    const count = await prisma.package.count({
+      where: {
+        organizationId,
+        createdAt: {
+          gte: new Date(`${year}-01-01T00:00:00.000Z`),
+        },
+      },
+    });
+
+    const sequential = String(count + 1).padStart(6, '0');
+    return `ENC-${year}-${sequential}`;
+  }
+
+  // Gera código numérico de 4 dígitos para retirada segura
+  private generatePickupCode(): string {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  async create(data: CreatePackageDTO) {
+    // 1. Valida destino existente
+    const destination = await prisma.destination.findUnique({
+      where: { id: data.destinationId },
+      include: {
+        clients: {
+          include: { client: true },
+          where: { isPrimary: true },
+        },
+      },
+    });
+
+    if (!destination) {
+      throw new Error('Destino / Unidade não encontrado.');
+    }
+
+    // 2. Se cliente não foi passado, tenta vincular ao morador principal da unidade
+    let clientId = data.clientId;
+    let client = null;
+
+    if (clientId) {
+      client = await prisma.client.findUnique({ where: { id: clientId } });
+    } else if (destination.clients.length > 0) {
+      client = destination.clients[0].client;
+      clientId = client.id;
+    }
+
+    const code = await this.generatePackageCode(data.organizationId);
+    const pickupCode = this.generatePickupCode();
+
+    // 3. Salva no banco de dados
+    const pkg = await prisma.package.create({
+      data: {
+        organizationId: data.organizationId,
+        destinationId: data.destinationId,
+        clientId,
+        code,
+        trackingCode: data.trackingCode,
+        carrier: data.carrier || 'Encomenda',
+        recipientName: data.recipientName || client?.name || destination.name,
+        sender: data.sender,
+        photoUrl: data.photoUrl,
+        notes: data.notes,
+        pickupCode,
+        status: 'RECEIVED',
+        conciergeReceivedUserId: data.conciergeUserId,
+      },
+      include: {
+        destination: { select: { id: true, name: true, block: true } },
+        client: { select: { id: true, name: true, whatsappNumber: true } },
+      },
+    });
+
+    // 4. Emite evento em tempo real via WebSocket
+    realtimeService.emitToOrganization(data.organizationId, 'package:created', {
+      package: pkg,
+    });
+
+    // 5. Notifica o Morador pelo WhatsApp automaticamente se houver número cadastrado
+    if (client?.whatsappNumber) {
+      const destText = `${destination.name}${destination.block ? ' - ' + destination.block : ''}`;
+      const msg = `📦 *NOVA ENCOMENDA CHEGOU NA PORTARIA*\n\nOlá, *${client.name}*!\nUma encomenda acabou de ser recebida na guarita para *${destText}*.\n\n• *Transportadora / Remetente:* ${pkg.carrier || 'Entrega'}${pkg.sender ? ' (' + pkg.sender + ')' : ''}\n• *Rastreio:* ${pkg.trackingCode || 'Sem rastreio'}\n• 🔑 *CÓDIGO DE RETIRADA:* *${pkg.pickupCode}*\n\nPor favor, informe este código de 4 dígitos ao porteiro ao retirar seu pacote.`;
+
+      whatsappService.sendMessage(data.organizationId, client.whatsappNumber, msg).catch((err) => {
+        console.warn('Erro ao disparar WhatsApp de encomenda:', err.message);
+      });
+    }
+
+    return pkg;
+  }
+
+  async listPending(organizationId: string) {
+    const packages = await prisma.package.findMany({
+      where: {
+        organizationId,
+        status: 'RECEIVED',
+      },
+      orderBy: { receivedAt: 'desc' },
+      include: {
+        destination: { select: { id: true, name: true, block: true } },
+        client: { select: { id: true, name: true, whatsappNumber: true } },
+      },
+    });
+
+    return packages;
+  }
+
+  async listHistory(organizationId: string, limit = 50) {
+    const packages = await prisma.package.findMany({
+      where: {
+        organizationId,
+      },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        destination: { select: { id: true, name: true, block: true } },
+        client: { select: { id: true, name: true, whatsappNumber: true } },
+      },
+    });
+
+    return packages;
+  }
+
+  async pickup(packageId: string, organizationId: string, conciergeUserId: string, pickupCode: string, pickedUpBy?: string) {
+    const pkg = await prisma.package.findUnique({
+      where: { id: packageId },
+      include: {
+        destination: true,
+        client: true,
+      },
+    });
+
+    if (!pkg || pkg.organizationId !== organizationId) {
+      throw new Error('Encomenda não encontrada.');
+    }
+
+    if (pkg.status !== 'RECEIVED') {
+      throw new Error(`Esta encomenda já está com status ${pkg.status}.`);
+    }
+
+    // Validação estrita do código de 4 dígitos
+    if (pkg.pickupCode !== pickupCode.trim()) {
+      throw new Error('Código de retirada incorreto! Solicite o código de 4 dígitos que o morador recebeu no WhatsApp.');
+    }
+
+    const updated = await prisma.package.update({
+      where: { id: packageId },
+      data: {
+        status: 'PICKED_UP',
+        pickedUpAt: new Date(),
+        pickedUpBy: pickedUpBy || pkg.client?.name || pkg.recipientName || 'Morador',
+        conciergeDeliveredUserId: conciergeUserId,
+      },
+      include: {
+        destination: true,
+        client: true,
+      },
+    });
+
+    // Emite evento em tempo real
+    realtimeService.emitToOrganization(organizationId, 'package:picked_up', {
+      package: updated,
+    });
+
+    // Notificação de confirmação no WhatsApp
+    if (pkg.client?.whatsappNumber) {
+      const msg = `✅ *ENCOMENDA RETIRADA*\n\nA encomenda *${pkg.code}* (${pkg.carrier || 'Pacote'}) foi retirada com sucesso na portaria por *${updated.pickedUpBy}* às ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`;
+      whatsappService.sendMessage(organizationId, pkg.client.whatsappNumber, msg).catch(() => {});
+    }
+
+    return updated;
+  }
+
+  async resendCode(packageId: string, organizationId: string) {
+    const pkg = await prisma.package.findUnique({
+      where: { id: packageId },
+      include: {
+        destination: true,
+        client: true,
+      },
+    });
+
+    if (!pkg || pkg.organizationId !== organizationId) {
+      throw new Error('Encomenda não encontrada.');
+    }
+
+    if (!pkg.client?.whatsappNumber) {
+      throw new Error('Morador desta unidade não possui WhatsApp cadastrado.');
+    }
+
+    const destText = `${pkg.destination.name}${pkg.destination.block ? ' - ' + pkg.destination.block : ''}`;
+    const msg = `🔔 *LEMBRETE DE ENCOMENDA NA PORTARIA*\n\nOlá, *${pkg.client.name}*!\nSua encomenda *${pkg.code}* (${pkg.carrier || 'Pacote'}) segue aguardando retirada na portaria de *${destText}*.\n\n• 🔑 *CÓDIGO DE RETIRADA:* *${pkg.pickupCode}*`;
+
+    await whatsappService.sendMessage(organizationId, pkg.client.whatsappNumber, msg);
+    return { success: true, message: 'Código reenviado com sucesso.' };
+  }
+}
+
+export const packagesService = new PackagesService();

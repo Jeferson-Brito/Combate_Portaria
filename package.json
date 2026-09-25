@@ -1,0 +1,34 @@
+{
+  "name": "combate-portaria",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema Profissional de Controle de Acesso e Gestão de Visitantes com WhatsApp Baileys",
+  "workspaces": [
+    "backend",
+    "mobile"
+  ],
+  "scripts": {
+    "dev": "npm --workspace=backend run dev",
+    "start": "npm --workspace=backend run dev",
+    "backend:dev": "npm --workspace=backend run dev",
+    "backend:build": "npm --workspace=backend run build",
+    "backend:start": "npm --workspace=backend run start",
+    "backend:test": "npm --workspace=backend run test",
+    "backend:migrate": "npm --workspace=backend run prisma:migrate",
+    "backend:seed": "npm --workspace=backend run prisma:seed",
+    "mobile:start": "npm --workspace=mobile run start",
+    "mobile:android": "npm --workspace=mobile run android",
+    "mobile:ios": "npm --workspace=mobile run ios"
+  },
+  "keywords": [
+    "controle-de-acesso",
+    "portaria",
+    "baileys",
+    "whatsapp",
+    "supabase",
+    "react-native",
+    "fastify"
+  ],
+  "author": "Grupo Combate",
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,315 @@
+import fs from 'fs';
+import path from 'path';
+import { prisma } from '../../lib/prisma.js';
+import {
+  IWhatsAppProvider,
+  WhatsAppStatusInfo,
+  IncomingMessageEvent,
+} from './interfaces/whatsapp-provider.interface.js';
+import { BaileysProvider } from './providers/baileys.provider.js';
+import { MockWhatsAppProvider } from './providers/mock-whatsapp.provider.js';
+import { env } from '../../config/env.js';
+import { realtimeService } from '../realtime/realtime.service.js';
+
+export class WhatsAppService {
+  private static instance: WhatsAppService;
+  private providers: Map<string, IWhatsAppProvider> = new Map();
+  private mockProvider: MockWhatsAppProvider | null = null;
+  private ioServer: any = null;
+
+  private constructor() {
+    // Singleton
+  }
+
+  public static getInstance(): WhatsAppService {
+    if (!WhatsAppService.instance) {
+      WhatsAppService.instance = new WhatsAppService();
+    }
+    return WhatsAppService.instance;
+  }
+
+  public setSocketServer(io: any) {
+    this.ioServer = io;
+  }
+
+  public async autoRestoreSessions() {
+    if (env.NODE_ENV === 'test') return;
+
+    const baseDir = env.WHATSAPP_SESSION_PATH;
+    if (!fs.existsSync(baseDir)) return;
+
+    try {
+      const dirs = fs.readdirSync(baseDir, { withFileTypes: true });
+      for (const d of dirs) {
+        if (d.isDirectory() && d.name.startsWith('org_')) {
+          const orgId = d.name.replace('org_', '');
+          const credsPath = path.join(baseDir, d.name, 'creds.json');
+          if (fs.existsSync(credsPath)) {
+            console.log(`🔄 [WhatsApp] Restaurando sessão salva da organização: ${orgId}...`);
+            const provider = this.getProvider(orgId);
+            provider.connect(orgId).catch((err: any) => {
+              console.warn(`Aviso: falha ao auto-restaurar WhatsApp para org ${orgId}:`, err?.message || err);
+            });
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('Erro ao verificar sessões para auto-restore:', e?.message || e);
+    }
+  }
+
+  public getProvider(organizationId: string): IWhatsAppProvider {
+    // Se estiver em ambiente de teste ou explicitamente mock
+    if (env.NODE_ENV === 'test') {
+      if (!this.mockProvider) {
+        this.mockProvider = new MockWhatsAppProvider();
+        this.setupIncomingHandler(this.mockProvider, organizationId);
+      }
+      return this.mockProvider;
+    }
+
+    let provider = this.providers.get(organizationId);
+    if (!provider) {
+      provider = new BaileysProvider();
+      this.setupIncomingHandler(provider, organizationId);
+      this.providers.set(organizationId, provider);
+    }
+    return provider;
+  }
+
+  // Escuta e processa mensagens de moradores (1=Autorizar / 2=Recusar)
+  private setupIncomingHandler(provider: IWhatsAppProvider, organizationId: string) {
+    provider.onMessageReceived(async (event: IncomingMessageEvent) => {
+      await this.handleIncomingResponse(organizationId, event);
+    });
+  }
+
+  // Processa a resposta enviada pelo morador no WhatsApp (Seção 21 da especificação)
+  public async handleIncomingResponse(organizationId: string, event: IncomingMessageEvent) {
+    const rawText = event.text.trim().toUpperCase();
+    const cleanPhone = event.fromPhone.replace(/\D/g, '');
+
+    // Identifica a intenção do morador
+    const isAuthorize =
+      rawText === '1' ||
+      rawText.startsWith('1 ') ||
+      rawText === 'SIM' ||
+      rawText === 'AUTORIZAR' ||
+      rawText === 'PODE ENTRAR' ||
+      rawText === 'LIBERADO' ||
+      rawText === 'LIBERAR';
+
+    const isDeny =
+      rawText === '2' ||
+      rawText.startsWith('2 ') ||
+      rawText === 'NAO' ||
+      rawText === 'NÃO' ||
+      rawText === 'RECUSAR' ||
+      rawText === 'NEGAR';
+
+    if (!isAuthorize && !isDeny) {
+      return; // Mensagem irrelevante ou não estruturada
+    }
+
+    // Localiza o cliente pelo telefone
+    const client = await prisma.client.findFirst({
+      where: {
+        organizationId,
+        whatsappNumber: { contains: cleanPhone.slice(-8) }, // Busca pelos últimos dígitos
+        deletedAt: null,
+      },
+    });
+
+    if (!client) {
+      return;
+    }
+
+    // Busca a solicitação PENDING mais recente deste cliente
+    const pendingRequest = await prisma.visitRequest.findFirst({
+      where: {
+        organizationId,
+        clientId: client.id,
+        status: 'PENDING',
+      },
+      include: {
+        visitor: true,
+        destination: true,
+        conciergeUser: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!pendingRequest) {
+      return; // Nenhuma solicitação pendente para este cliente
+    }
+
+    const newStatus = isAuthorize ? 'AUTHORIZED' : 'DENIED';
+
+    // Atualiza status no banco de dados de forma atômica
+    const updated = await prisma.visitRequest.update({
+      where: { id: pendingRequest.id },
+      data: {
+        status: newStatus,
+        answeredAt: new Date(),
+      },
+    });
+
+    // Registra evento imutável na timeline (Seção 21)
+    await prisma.visitEvent.create({
+      data: {
+        visitRequestId: pendingRequest.id,
+        eventType: newStatus,
+        description: isAuthorize
+          ? `Entrada autorizada pelo morador ${client.name} via WhatsApp.`
+          : `Entrada recusada pelo morador ${client.name} via WhatsApp.`,
+        actorType: 'WHATSAPP_CLIENT',
+        actorId: client.whatsappNumber,
+        metadata: JSON.stringify({
+          rawMessage: event.text,
+          phone: event.fromPhone,
+          timestamp: event.timestamp,
+        }),
+      },
+    });
+
+    // Emite atualização instantânea via RealtimeService para a portaria
+    realtimeService.notifyVisitRequestUpdated(organizationId, {
+      id: pendingRequest.id,
+      code: pendingRequest.code,
+      status: newStatus,
+      visitorName: pendingRequest.visitor.name,
+      clientName: client.name,
+      destinationName: pendingRequest.destination.name,
+      answeredAt: updated.answeredAt,
+    });
+
+    // Emite alerta sonoro/visual de alta prioridade para os porteiros
+    realtimeService.notifyAlert(organizationId, {
+      title: isAuthorize ? 'Entrada Autorizada!' : 'Entrada Recusada!',
+      message: isAuthorize
+        ? `O morador ${client.name} autorizou a entrada de ${pendingRequest.visitor.name} (${pendingRequest.destination.name}).`
+        : `O morador ${client.name} RECUSOU a entrada de ${pendingRequest.visitor.name} (${pendingRequest.destination.name}).`,
+      type: isAuthorize ? 'AUTHORIZED' : 'DENIED',
+      visitRequestId: pendingRequest.id,
+      visitorName: pendingRequest.visitor.name,
+      clientName: client.name,
+      destinationName: pendingRequest.destination.name,
+    });
+
+    console.log(
+      `🔔 Solicitação ${pendingRequest.code} atualizada para ${newStatus} pelo cliente ${client.name}`
+    );
+
+    // Envia resposta de confirmação de volta para o morador no WhatsApp
+    try {
+      const provider = this.getProvider(organizationId);
+      const confirmationMsg = isAuthorize
+        ? `✅ *Entrada Autorizada!*\n\nA liberação de *${pendingRequest.visitor.name}* foi confirmada com sucesso e a portaria já foi notificada para permitir o acesso.`
+        : `❌ *Entrada Recusada!*\n\nA recusa da visita de *${pendingRequest.visitor.name}* foi registrada com sucesso e a portaria não permitirá a entrada.`;
+
+      await provider.sendMessage(client.whatsappNumber, confirmationMsg);
+      console.log(`📤 [WhatsAppService] Resposta de confirmação enviada para ${client.name} (${client.whatsappNumber})`);
+    } catch (confErr: any) {
+      console.warn(`Aviso: falha ao enviar confirmação WhatsApp para ${client.name}:`, confErr?.message || confErr);
+    }
+  }
+
+  // Disparo de solicitação no WhatsApp ao criar a visita (Seção 20)
+  public async dispatchApprovalNotification(visitRequestId: string, organizationId: string) {
+    const req = await prisma.visitRequest.findUnique({
+      where: { id: visitRequestId },
+      include: {
+        client: true,
+        destination: true,
+        visitor: true,
+        vehicle: true,
+      },
+    });
+
+    if (!req) return;
+
+    // Busca template configurado para a organização
+    const template = await prisma.messageTemplate.findFirst({
+      where: {
+        organizationId,
+        type: 'APPROVAL_REQUEST',
+      },
+    });
+
+    const provider = this.getProvider(organizationId);
+
+    try {
+      await provider.sendApprovalRequest({
+        clientName: req.client.name,
+        clientPhone: req.client.whatsappNumber,
+        visitorName: req.visitor.name,
+        visitorCompany: req.visitor.company || undefined,
+        visitorType: req.visitorType,
+        visitReason: req.visitReason,
+        arrivalFormattedTime: req.createdAt.toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        vehicleModel: req.vehicle?.model,
+        vehiclePlate: req.vehicle?.licensePlate || undefined,
+        requestCode: req.code,
+        customTemplate: template?.content,
+      });
+
+      // Registra evento de envio
+      await prisma.visitEvent.create({
+        data: {
+          visitRequestId: req.id,
+          eventType: 'WA_SENT',
+          description: `Mensagem de autorização enviada para o WhatsApp de ${req.client.name} (${req.client.whatsappNumber}).`,
+          actorType: 'SYSTEM',
+        },
+      });
+    } catch (err: any) {
+      console.warn(`Aviso: falha ao despachar WhatsApp para ${req.client.name}:`, err.message);
+      // Mantém a solicitação salva conforme Seção 46 (Resiliência)
+    }
+  }
+
+  // Disparo de lembrete
+  public async dispatchReminderNotification(visitRequestId: string, organizationId: string) {
+    const req = await prisma.visitRequest.findUnique({
+      where: { id: visitRequestId },
+      include: {
+        client: true,
+        visitor: true,
+      },
+    });
+
+    if (!req) return;
+
+    const template = await prisma.messageTemplate.findFirst({
+      where: {
+        organizationId,
+        type: 'REMINDER',
+      },
+    });
+
+    const provider = this.getProvider(organizationId);
+
+    try {
+      await provider.sendReminder({
+        clientName: req.client.name,
+        clientPhone: req.client.whatsappNumber,
+        visitorName: req.visitor.name,
+        requestCode: req.code,
+        customTemplate: template?.content,
+      });
+    } catch (err: any) {
+      console.warn('Aviso: falha ao enviar lembrete no WhatsApp:', err.message);
+    }
+  }
+
+  // Envio genérico de mensagem de texto (ex: aviso de encomendas, comunicados)
+  public async sendMessage(organizationId: string, toPhone: string, text: string): Promise<{ messageId: string }> {
+    const provider = this.getProvider(organizationId);
+    return provider.sendMessage(toPhone, text);
+  }
+}
+
+export const whatsappService = WhatsAppService.getInstance();
