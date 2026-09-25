@@ -164,6 +164,8 @@ export const ClientsManagementScreen: React.FC<ClientsManagementScreenProps> = (
     } finally {
       setIsSubmittingClient(false);
     }
+  };
+
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0) + 14;
 
