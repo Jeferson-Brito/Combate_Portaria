@@ -11,6 +11,7 @@ import {
   Alert,
   RefreshControl,
   Platform,
+  ScrollView,
 } from 'react-native';
 import {
   Package,
