@@ -21,19 +21,28 @@ export const getHostIp = (): string => {
   return '192.168.15.115';
 };
 
+const PRODUCTION_API_URL = 'https://combate-portaria-backend.onrender.com/api/v1';
+
 export const getBaseUrl = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // Web local no navegador do próprio PC
-  if (Platform.OS === 'web') {
+  // Se estiver em desenvolvimento local no navegador
+  if (__DEV__ && Platform.OS === 'web') {
     return 'http://localhost:3333/api/v1';
   }
 
-  // Aparelho físico no Expo Go ou emulador: conecta no IP da rede local
-  const hostIp = getHostIp();
-  return `http://${hostIp}:3333/api/v1`;
+  // Se estiver rodando em desenvolvimento local no Expo Go
+  if (__DEV__) {
+    const hostIp = getHostIp();
+    if (hostIp && hostIp !== '192.168.15.115') {
+      return `http://${hostIp}:3333/api/v1`;
+    }
+  }
+
+  // Padrão para app instalado (APK / Produção)
+  return PRODUCTION_API_URL;
 };
 
 export const getSocketUrl = () => {
@@ -43,7 +52,7 @@ export const getSocketUrl = () => {
 
 export const api = axios.create({
   baseURL: getBaseUrl(),
-  timeout: 10000,
+  timeout: 35000, // 35 segundos para suportar eventual cold-start do Render
 });
 
 api.interceptors.request.use(
