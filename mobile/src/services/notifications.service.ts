@@ -3,24 +3,34 @@ import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { api } from '../config/api';
 
-// Configuração padrão de exibição de notificações quando o app está em primeiro plano
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
-
 export const isExpoGo =
   Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
   (Constants as any).appOwnership === 'expo';
 
+// Configuração padrão de exibição de notificações apenas no app compilado (não no Expo Go)
+if (!isExpoGo) {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  } catch (e) {
+    // Ignora erro em ambientes de desenvolvimento
+  }
+}
+
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
+  if (Platform.OS === 'web' || isExpoGo) {
+    // No Expo Go a partir do SDK 53, notificações remotas push são desativadas pela Meta/Google.
+    // Elas funcionam automaticamente na compilação do APK nativo.
+    return null;
+  }
 
   try {
-    // Canal de notificação do Android com som e prioridade máxima (Seção 22)
+    // Canal de notificação do Android com som e prioridade máxima
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('portaria-alerts', {
         name: 'Alertas de Acesso da Portaria',
@@ -42,13 +52,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
     if (finalStatus !== 'granted') {
       console.warn('⚠️ Permissão de notificações negada pelo usuário.');
-      return null;
-    }
-
-    // No Expo Go a partir do SDK 53, notificações remotas push (FCM) são desativadas pela Meta/Google.
-    // Elas funcionam automaticamente na compilação do APK nativo (build de desenvolvimento ou produção).
-    if (isExpoGo) {
-      console.log('ℹ️ [Notifications] Executando no Expo Go: usando notificações locais e banner instantâneo.');
       return null;
     }
 
@@ -78,6 +81,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 }
 
 export async function triggerLocalAlertNotification(title: string, body: string, isAuthorized: boolean) {
+  if (isExpoGo) return;
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
