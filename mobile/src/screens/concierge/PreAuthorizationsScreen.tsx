@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 import {
   Search,
-  PlusCircle,
+  CirclePlus,
   Clock,
   Building,
   User,
-  CheckCircle2,
+  CircleCheck,
   Calendar,
   Briefcase,
   ShieldCheck,
@@ -205,7 +205,7 @@ export const PreAuthorizationsScreen: React.FC<PreAuthorizationsScreenProps> = (
             <ActivityIndicator size="small" color={colors.white} />
           ) : (
             <>
-              <CheckCircle2 size={18} color={colors.white} style={{ marginRight: 8 }} />
+              <CircleCheck size={18} color={colors.white} style={{ marginRight: 8 }} />
               <Text style={styles.checkInButtonText}>LIBERAR ENTRADA IMEDIATA</Text>
             </>
           )}
@@ -245,7 +245,7 @@ export const PreAuthorizationsScreen: React.FC<PreAuthorizationsScreenProps> = (
           onPress={() => setIsModalOpen(true)}
           activeOpacity={0.8}
         >
-          <PlusCircle size={20} color={colors.white} />
+          <CirclePlus size={20} color={colors.white} />
         </TouchableOpacity>
       </View>
 

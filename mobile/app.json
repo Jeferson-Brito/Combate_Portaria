@@ -28,7 +28,9 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -48,6 +50,11 @@
           "color": "#0F203D"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6bbcb9f7-7eae-44e1-b8cb-2bd2219e081f"
+      }
+    }
   }
 }

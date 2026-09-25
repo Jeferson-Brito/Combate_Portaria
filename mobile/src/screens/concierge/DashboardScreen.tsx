@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,13 @@ import {
   StatusBar,
   SafeAreaView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import {
   Clock,
-  CheckCircle,
-  XCircle,
+  CircleCheck,
+  CircleX,
   Users,
   LogOut,
   Plus,
@@ -24,13 +26,13 @@ import {
   CalendarCheck,
   BarChart3,
   MessageSquare,
-  QrCode,
   Package,
   Bell,
   Building2,
-  Shield,
-  Layers,
   UserCheck,
+  LogIn,
+  Car,
+  Building,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
@@ -40,21 +42,28 @@ import { NewRequestModal } from './NewRequestModal';
 import { OpenRequestsScreen } from './OpenRequestsScreen';
 import { PreAuthorizationsScreen } from './PreAuthorizationsScreen';
 import { PresentVisitorsScreen } from './PresentVisitorsScreen';
+import { AuthorizedRequestsScreen } from './AuthorizedRequestsScreen';
+import { NotificationsModal } from './NotificationsModal';
 import { PackagesScreen } from '../packages/PackagesScreen';
 import { WhatsAppConfigScreen } from '../admin/WhatsAppConfigScreen';
 import { UsersManagementScreen } from '../admin/UsersManagementScreen';
 import { ClientsManagementScreen } from '../admin/ClientsManagementScreen';
 import { ReportsScreen } from '../reports/ReportsScreen';
-import { useRealtime } from '../../contexts/RealtimeContext';
+import { useRealtime, RealtimeAlert } from '../../contexts/RealtimeContext';
 
 export const DashboardScreen: React.FC = () => {
   const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'pending' | 'present' | 'packages' | 'reports' | 'whatsapp' | 'settings' | 'users_mgmt' | 'clients_mgmt'
+    'dashboard' | 'pending' | 'authorized' | 'present' | 'packages' | 'reports' | 'whatsapp' | 'settings' | 'users_mgmt' | 'clients_mgmt' | 'preauthorizations'
   >('dashboard');
   const [packagesCount, setPackagesCount] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
+  const [notifications, setNotifications] = useState<RealtimeAlert[]>([]);
+  const [recentRequests, setRecentRequests] = useState<any[]>([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [entryProcessingId, setEntryProcessingId] = useState<string | null>(null);
 
   const [summary, setSummary] = useState({
     pendingCount: 0,
@@ -65,48 +74,92 @@ export const DashboardScreen: React.FC = () => {
 
   const { addListener } = useRealtime();
 
-  const fetchSummary = async () => {
+  const fetchSummaryAndRequests = useCallback(async () => {
     try {
-      const [summaryRes, pkgsRes] = await Promise.allSettled([
+      setIsLoadingRequests(true);
+      const [summaryRes, pkgsRes, historyRes] = await Promise.allSettled([
         api.get('/visit-requests/summary'),
         api.get('/packages/pending'),
+        api.get('/visit-requests/history?limit=30'),
       ]);
+
       if (summaryRes.status === 'fulfilled' && summaryRes.value.data?.data) {
         setSummary(summaryRes.value.data.data);
       }
       if (pkgsRes.status === 'fulfilled' && pkgsRes.value.data?.data) {
         setPackagesCount(pkgsRes.value.data.data.length || 0);
       }
-    } catch (err) {}
-  };
+      if (historyRes.status === 'fulfilled' && historyRes.value.data?.data?.requests) {
+        const list = historyRes.value.data.data.requests;
+        // Ordena: PENDING sempre no topo, depois AUTHORIZED, depois os demais
+        const sorted = [...list].sort((a: any, b: any) => {
+          if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
+          if (a.status !== 'PENDING' && b.status === 'PENDING') return 1;
+          if (a.status === 'AUTHORIZED' && b.status !== 'AUTHORIZED') return -1;
+          if (a.status !== 'AUTHORIZED' && b.status === 'AUTHORIZED') return 1;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        setRecentRequests(sorted);
+      }
+    } catch (err) {
+      console.warn('Erro ao atualizar dashboard:', err);
+    } finally {
+      setIsLoadingRequests(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchSummary();
-    const unsubCreated = addListener('visit_request:created', fetchSummary);
-    const unsubUpdated = addListener('visit_request:updated', fetchSummary);
-    const unsubPkgCreated = addListener('package:created', fetchSummary);
-    const unsubPkgPicked = addListener('package:picked_up', fetchSummary);
-    const interval = setInterval(fetchSummary, 15000);
+    fetchSummaryAndRequests();
+
+    const unsubCreated = addListener('visit_request:created', fetchSummaryAndRequests);
+    const unsubUpdated = addListener('visit_request:updated', fetchSummaryAndRequests);
+    const unsubPkgCreated = addListener('package:created', fetchSummaryAndRequests);
+    const unsubPkgPicked = addListener('package:picked_up', fetchSummaryAndRequests);
+    const unsubAlert = addListener('notification:alert', (alert: RealtimeAlert) => {
+      setNotifications((prev) => [alert, ...prev]);
+      fetchSummaryAndRequests();
+    });
+
+    const interval = setInterval(fetchSummaryAndRequests, 15000);
+
     return () => {
       unsubCreated();
       unsubUpdated();
       unsubPkgCreated();
       unsubPkgPicked();
+      unsubAlert();
       clearInterval(interval);
     };
-  }, [addListener]);
+  }, [addListener, fetchSummaryAndRequests]);
+
+  const handleRegisterEntry = async (requestId: string, visitorName: string) => {
+    try {
+      setEntryProcessingId(requestId);
+      await api.post(`/visit-requests/${requestId}/entry`, {
+        reason: 'Entrada registrada na portaria pelo dashboard',
+      });
+      Alert.alert('Sucesso! 🟢', `Entrada de ${visitorName} registrada no local.`);
+      fetchSummaryAndRequests();
+    } catch (err: any) {
+      Alert.alert('Erro', err.response?.data?.message || 'Falha ao registrar entrada.');
+    } finally {
+      setEntryProcessingId(null);
+    }
+  };
 
   const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 12);
 
   const renderContent = () => {
     if (activeTab === 'pending') return <OpenRequestsScreen />;
+    if (activeTab === 'authorized') return <AuthorizedRequestsScreen />;
     if (activeTab === 'present') return <PresentVisitorsScreen />;
     if (activeTab === 'packages') return <PackagesScreen onBack={() => setActiveTab('dashboard')} />;
+    if (activeTab === 'preauthorizations') return <PreAuthorizationsScreen onBack={() => setActiveTab('dashboard')} />;
     if (activeTab === 'whatsapp') return <WhatsAppConfigScreen onBack={() => setActiveTab('settings')} />;
     if (activeTab === 'users_mgmt') return <UsersManagementScreen onBack={() => setActiveTab('settings')} />;
     if (activeTab === 'clients_mgmt') return <ClientsManagementScreen onBack={() => setActiveTab('settings')} />;
-    if (activeTab === 'preauthorizations') return <PreAuthorizationsScreen onBack={() => setActiveTab('settings')} />;
     if (activeTab === 'reports') return <ReportsScreen />;
+
     if (activeTab === 'settings') {
       return (
         <ScrollView
@@ -116,7 +169,16 @@ export const DashboardScreen: React.FC = () => {
         >
           {/* Header do Menu */}
           <View style={styles.settingsHeader}>
-            <Text style={styles.settingsSectionTitle}>Painel & Cadastros</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <TouchableOpacity
+                onPress={() => setActiveTab('dashboard')}
+                style={{ marginRight: 10, padding: 4 }}
+                activeOpacity={0.7}
+              >
+                <ChevronRight size={22} color="#0F172A" style={{ transform: [{ rotate: '180deg' }] }} />
+              </TouchableOpacity>
+              <Text style={styles.settingsSectionTitle}>Painel & Cadastros</Text>
+            </View>
             <Text style={styles.settingsSectionSubtitle}>
               Cadastre e gerencie a equipe da portaria, moradores e integrações.
             </Text>
@@ -176,25 +238,7 @@ export const DashboardScreen: React.FC = () => {
             <ChevronRight size={18} color="#94A3B8" />
           </TouchableOpacity>
 
-          {/* Card 4: Pré-Autorizações Agendadas */}
-          <TouchableOpacity
-            style={styles.menuCard}
-            onPress={() => setActiveTab('preauthorizations')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.menuIconContainer, { backgroundColor: '#FEF3C7' }]}>
-              <CalendarCheck size={22} color="#D97706" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={styles.menuCardTitle}>Pré-Autorizações Agendadas</Text>
-              <Text style={styles.menuCardSubtitle}>
-                Visitas pré-cadastradas para o dia de hoje.
-              </Text>
-            </View>
-            <ChevronRight size={18} color="#94A3B8" />
-          </TouchableOpacity>
-
-          {/* Card 5: Logout */}
+          {/* Card 4: Logout */}
           <TouchableOpacity
             style={styles.settingsLogoutBtn}
             onPress={signOut}
@@ -207,7 +251,7 @@ export const DashboardScreen: React.FC = () => {
       );
     }
 
-    // Dashboard Tab (Design Exato do Mockup)
+    // Dashboard Tab Principal
     return (
       <ScrollView
         style={styles.scrollView}
@@ -234,11 +278,13 @@ export const DashboardScreen: React.FC = () => {
             <View style={styles.headerActions}>
               <TouchableOpacity
                 style={styles.headerIconButton}
-                onPress={() => setActiveTab('pending')}
+                onPress={() => setIsNotificationsModalOpen(true)}
                 activeOpacity={0.75}
               >
                 <Bell size={22} color={colors.white} />
-                {summary.pendingCount > 0 && <View style={styles.notificationDot} />}
+                {(notifications.length > 0 || summary.pendingCount > 0) && (
+                  <View style={styles.notificationDot} />
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -252,7 +298,7 @@ export const DashboardScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Conteúdo Principal com Fundo Cinza Suave */}
+        {/* Conteúdo Principal */}
         <View style={styles.bodyContainer}>
           {/* Ação Principal: Nova Visita */}
           <TouchableOpacity
@@ -305,6 +351,172 @@ export const DashboardScreen: React.FC = () => {
               <Text style={styles.secondaryCardSubtitle}>Recebimentos</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Seção: Solicitações de Acesso (Unificada com Pendentes no Topo) */}
+          <View style={styles.listSectionContainer}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Solicitações de Acesso</Text>
+              <View style={styles.statusPillsRow}>
+                {summary.pendingCount > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('pending')}
+                    style={styles.pillPending}
+                    activeOpacity={0.8}
+                  >
+                    <Clock size={12} color="#D97706" style={{ marginRight: 4 }} />
+                    <Text style={styles.pillPendingText}>{summary.pendingCount} pendente(s)</Text>
+                  </TouchableOpacity>
+                )}
+                {summary.authorizedCount > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('authorized')}
+                    style={styles.pillAuthorized}
+                    activeOpacity={0.8}
+                  >
+                    <ShieldCheck size={12} color="#16A34A" style={{ marginRight: 4 }} />
+                    <Text style={styles.pillAuthorizedText}>{summary.authorizedCount} autorizado(s)</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {isLoadingRequests && recentRequests.length === 0 ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#2563EB" />
+                <Text style={styles.loadingRequestsText}>Atualizando solicitações...</Text>
+              </View>
+            ) : recentRequests.length === 0 ? (
+              <View style={styles.emptyRequestsCard}>
+                <Clock size={36} color="#94A3B8" style={{ marginBottom: 8 }} />
+                <Text style={styles.emptyRequestsTitle}>Nenhuma solicitação recente</Text>
+                <Text style={styles.emptyRequestsSubtitle}>
+                  Toque em "+ Nova Visita" para registrar uma nova entrada na portaria.
+                </Text>
+              </View>
+            ) : (
+              recentRequests.map((req) => {
+                const isPending = req.status === 'PENDING';
+                const isAuthorized = req.status === 'AUTHORIZED';
+                const isEntered = req.status === 'ENTERED';
+                const isDenied = req.status === 'DENIED';
+
+                const timeFormatted = new Date(req.createdAt).toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+
+                return (
+                  <View
+                    key={req.id}
+                    style={[
+                      styles.requestCard,
+                      isPending && styles.cardPendingBorder,
+                      isAuthorized && styles.cardAuthorizedBorder,
+                      isEntered && styles.cardEnteredBorder,
+                      isDenied && styles.cardDeniedBorder,
+                    ]}
+                  >
+                    {/* Header do Card com Badge */}
+                    <View style={styles.requestCardHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        {isPending && (
+                          <View style={styles.badgePending}>
+                            <Clock size={12} color="#D97706" style={{ marginRight: 4 }} />
+                            <Text style={styles.badgePendingText}>AGUARDANDO MORADOR</Text>
+                          </View>
+                        )}
+                        {isAuthorized && (
+                          <View style={styles.badgeAuthorized}>
+                            <ShieldCheck size={12} color="#16A34A" style={{ marginRight: 4 }} />
+                            <Text style={styles.badgeAuthorizedText}>AUTORIZADO</Text>
+                          </View>
+                        )}
+                        {isEntered && (
+                          <View style={styles.badgeEntered}>
+                            <UserCheck size={12} color="#2563EB" style={{ marginRight: 4 }} />
+                            <Text style={styles.badgeEnteredText}>NO LOCAL</Text>
+                          </View>
+                        )}
+                        {isDenied && (
+                          <View style={styles.badgeDenied}>
+                            <CircleX size={12} color="#DC2626" style={{ marginRight: 4 }} />
+                            <Text style={styles.badgeDeniedText}>RECUSADO</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <Text style={styles.requestCodeText}>{req.code}</Text>
+                    </View>
+
+                    {/* Nome do Visitante */}
+                    <Text style={styles.requestVisitorName}>{req.visitor?.name}</Text>
+
+                    {req.visitor?.company && (
+                      <Text style={styles.requestCompany}>Empresa: {req.visitor.company}</Text>
+                    )}
+
+                    {/* Destino e Morador */}
+                    <View style={styles.requestDestRow}>
+                      <Building size={14} color="#64748B" style={{ marginRight: 6 }} />
+                      <Text style={styles.requestDestText}>
+                        {req.destination?.name} {req.destination?.block ? `(${req.destination.block})` : ''}
+                      </Text>
+                      {req.client?.name && (
+                        <Text style={styles.requestClientText}> • Morador: {req.client.name}</Text>
+                      )}
+                    </View>
+
+                    {/* Veículo (se houver) */}
+                    {req.vehicle?.model && (
+                      <View style={styles.requestMetaRow}>
+                        <Car size={14} color="#64748B" style={{ marginRight: 6 }} />
+                        <Text style={styles.requestMetaText}>
+                          {req.vehicle.model} {req.vehicle.licensePlate ? `• Placa ${req.vehicle.licensePlate}` : ''}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Horário */}
+                    <View style={styles.requestMetaRow}>
+                      <Clock size={13} color="#94A3B8" style={{ marginRight: 6 }} />
+                      <Text style={styles.requestTimeText}>Registrado às {timeFormatted}</Text>
+                    </View>
+
+                    {/* Ação Rápida para Autorizados: Registrar Entrada */}
+                    {isAuthorized && (
+                      <TouchableOpacity
+                        style={styles.quickEntryBtn}
+                        onPress={() => handleRegisterEntry(req.id, req.visitor?.name)}
+                        disabled={entryProcessingId === req.id}
+                        activeOpacity={0.85}
+                      >
+                        {entryProcessingId === req.id ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <LogIn size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                            <Text style={styles.quickEntryBtnText}>REGISTRAR ENTRADA</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Ação Rápida para Pendentes: Ver no Aguardando */}
+                    {isPending && (
+                      <TouchableOpacity
+                        style={styles.quickPendingBtn}
+                        onPress={() => setActiveTab('pending')}
+                        activeOpacity={0.85}
+                      >
+                        <Clock size={14} color="#D97706" style={{ marginRight: 6 }} />
+                        <Text style={styles.quickPendingBtnText}>Acompanhar / Reenviar WhatsApp</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })
+            )}
+          </View>
         </View>
       </ScrollView>
     );
@@ -317,7 +529,7 @@ export const DashboardScreen: React.FC = () => {
       <View style={styles.container}>
         {renderContent()}
 
-        {/* Barra de Navegação Inferior Exata do Mockup com Proteção de Insets Android */}
+        {/* Barra de Navegação Inferior: 5 Abas */}
         <View style={[styles.bottomTabBar, { paddingBottom: bottomInset }]}>
           {/* 1. Início */}
           <TouchableOpacity
@@ -368,16 +580,53 @@ export const DashboardScreen: React.FC = () => {
             {activeTab === 'pending' && <View style={styles.activeTabIndicator} />}
           </TouchableOpacity>
 
-          {/* 3. Presentes */}
+          {/* 3. Autorizados */}
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => setActiveTab('authorized')}
+            activeOpacity={0.8}
+          >
+            <View>
+              <ShieldCheck
+                size={22}
+                color={activeTab === 'authorized' ? '#16A34A' : '#94A3B8'}
+              />
+              {summary.authorizedCount > 0 && (
+                <View style={[styles.tabBadgeDot, { backgroundColor: '#16A34A' }]}>
+                  <Text style={styles.tabBadgeText}>{summary.authorizedCount}</Text>
+                </View>
+              )}
+            </View>
+            <Text
+              style={[
+                styles.tabLabel,
+                activeTab === 'authorized' && { color: '#16A34A', fontWeight: '700' },
+              ]}
+            >
+              Autorizados
+            </Text>
+            {activeTab === 'authorized' && (
+              <View style={[styles.activeTabIndicator, { backgroundColor: '#16A34A' }]} />
+            )}
+          </TouchableOpacity>
+
+          {/* 4. Presentes */}
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => setActiveTab('present')}
             activeOpacity={0.8}
           >
-            <Users
-              size={22}
-              color={activeTab === 'present' ? '#2563EB' : '#94A3B8'}
-            />
+            <View>
+              <Users
+                size={22}
+                color={activeTab === 'present' ? '#2563EB' : '#94A3B8'}
+              />
+              {summary.presentCount > 0 && (
+                <View style={styles.tabBadgeDot}>
+                  <Text style={styles.tabBadgeText}>{summary.presentCount}</Text>
+                </View>
+              )}
+            </View>
             <Text
               style={[
                 styles.tabLabel,
@@ -389,7 +638,7 @@ export const DashboardScreen: React.FC = () => {
             {activeTab === 'present' && <View style={styles.activeTabIndicator} />}
           </TouchableOpacity>
 
-          {/* 4. Relatórios */}
+          {/* 5. Relatórios */}
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => setActiveTab('reports')}
@@ -409,35 +658,32 @@ export const DashboardScreen: React.FC = () => {
             </Text>
             {activeTab === 'reports' && <View style={styles.activeTabIndicator} />}
           </TouchableOpacity>
-
-          {/* 5. Menu */}
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('settings')}
-            activeOpacity={0.8}
-          >
-            <Settings
-              size={22}
-              color={activeTab === 'settings' ? '#2563EB' : '#94A3B8'}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === 'settings' && styles.tabLabelActive,
-              ]}
-            >
-              Menu
-            </Text>
-            {activeTab === 'settings' && <View style={styles.activeTabIndicator} />}
-          </TouchableOpacity>
         </View>
 
+        {/* Modal Nova Visita */}
         <NewRequestModal
           visible={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onSuccess={() => {
-            fetchSummary();
+            fetchSummaryAndRequests();
             setActiveTab('pending');
+          }}
+        />
+
+        {/* Modal Notificações do Header */}
+        <NotificationsModal
+          visible={isNotificationsModalOpen}
+          onClose={() => setIsNotificationsModalOpen(false)}
+          notifications={notifications}
+          onClear={() => setNotifications([])}
+          onSelectNotification={(alert) => {
+            if (alert.type === 'AUTHORIZED') {
+              setActiveTab('authorized');
+            } else if (alert.type === 'DENIED') {
+              setActiveTab('reports');
+            } else {
+              setActiveTab('pending');
+            }
           }}
         />
       </View>
@@ -449,7 +695,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#0F203D',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
@@ -459,20 +704,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 110,
+    flexGrow: 1,
   },
 
-  // Cabeçalho Azul Marinho
+  // Cabeçalho Principal
   header: {
     backgroundColor: '#0F203D',
-    paddingHorizontal: 18,
-    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 14 : 10,
     paddingBottom: 22,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   headerTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   userProfileRow: {
     flexDirection: 'row',
@@ -482,20 +729,18 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
   },
   greetingTitle: {
-    fontSize: 18,
-    fontWeight: '800',
     color: colors.white,
-    letterSpacing: 0.2,
+    fontSize: 16,
+    fontWeight: '700',
   },
   greetingSubtitle: {
-    fontSize: 13,
     color: '#94A3B8',
-    marginTop: 1,
+    fontSize: 13,
   },
   headerActions: {
     flexDirection: 'row',
@@ -522,32 +767,9 @@ const styles = StyleSheet.create({
   // Corpo da Página
   bodyContainer: {
     paddingHorizontal: 16,
-    paddingTop: 14,
+    paddingTop: 16,
   },
 
-  // Card Organização
-  organizationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-    marginBottom: 12,
-  },
-  organizationText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1E293B',
-    flex: 1,
-  },
   // Card Ação Principal: Nova Visita
   primaryActionCard: {
     backgroundColor: '#FFFFFF',
@@ -592,316 +814,300 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
+    marginBottom: 18,
   },
   secondaryCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 18,
+    padding: 16,
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 2,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   secondaryIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
     position: 'relative',
+  },
+  secondaryBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
+  secondaryBadgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: '800',
   },
   secondaryCardTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#0F172A',
-    marginBottom: 2,
   },
   secondaryCardSubtitle: {
     fontSize: 12,
     color: '#64748B',
-  },
-  secondaryBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#EF4444',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 18,
-    alignItems: 'center',
-  },
-  secondaryBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  accessOverviewCard: {
-    backgroundColor: colors.white,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
-    marginBottom: 16,
-  },
-  accessHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  accessHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  accessIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: '#0F203D',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  accessHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-
-  // 3 Colunas de Métricas
-  metricsContainer: {
-    flexDirection: 'row',
-    paddingTop: 14,
-  },
-  metricColumn: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  metricValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  metricValueText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  metricSubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  metricSubText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#64748B',
-  },
-
-  // Atalhos Principais (Grid 4 colunas)
-  shortcutsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  shortcutCard: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginHorizontal: 3,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  shortcutCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    position: 'relative',
-  },
-  shortcutBadge: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    backgroundColor: '#EF4444',
-    borderRadius: 9,
-    paddingHorizontal: 5,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.white,
-  },
-  shortcutBadgeText: {
-    color: colors.white,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  shortcutLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-
-  // Banner Auditoria & Segurança
-  auditSecurityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  auditIconWrapper: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
-    backgroundColor: '#0F203D',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  auditTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  auditSubtitle: {
-    fontSize: 11,
-    color: '#64748B',
     marginTop: 2,
   },
 
-  // Seção Orientações da Portaria
-  guidanceSection: {
-    marginBottom: 16,
+  // Seção da Lista Unificada de Solicitações
+  listSectionContainer: {
+    marginTop: 6,
   },
-  guidanceSectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 10,
   },
-  guidanceScroll: {
-    paddingRight: 10,
+  statusPillsRow: {
+    flexDirection: 'row',
+    gap: 6,
   },
-  guidanceCard: {
-    width: 250,
-    backgroundColor: colors.white,
+  pillPending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
-    padding: 14,
-    marginRight: 12,
+  },
+  pillPendingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  pillAuthorized: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pillAuthorizedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#16A34A',
+  },
+  loadingContainer: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingRequestsText: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 6,
+  },
+  emptyRequestsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
+  },
+  emptyRequestsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 4,
+  },
+  emptyRequestsSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  requestCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 15,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderLeftWidth: 4,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 3,
-    elevation: 1,
+    elevation: 2,
   },
-  guidanceBadgeBlue: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#DBEAFE',
+  cardPendingBorder: {
+    borderLeftColor: '#D97706',
+  },
+  cardAuthorizedBorder: {
+    borderLeftColor: '#16A34A',
+  },
+  cardEnteredBorder: {
+    borderLeftColor: '#2563EB',
+  },
+  cardDeniedBorder: {
+    borderLeftColor: '#DC2626',
+  },
+  requestCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  badgePending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    marginBottom: 8,
   },
-  guidanceBadgeBlueText: {
-    color: '#2563EB',
-    fontSize: 10,
+  badgePendingText: {
+    fontSize: 11,
     fontWeight: '800',
+    color: '#D97706',
   },
-  guidanceBadgeGreen: {
-    alignSelf: 'flex-start',
+  badgeAuthorized: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    marginBottom: 8,
   },
-  guidanceBadgeGreenText: {
-    color: '#16A34A',
-    fontSize: 10,
+  badgeAuthorizedText: {
+    fontSize: 11,
     fontWeight: '800',
+    color: '#16A34A',
   },
-  guidanceCardTitle: {
-    fontSize: 15,
+  badgeEntered: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  badgeEnteredText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
+  badgeDenied: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  badgeDeniedText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  requestCodeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  requestVisitorName: {
+    fontSize: 16,
     fontWeight: '700',
     color: '#0F172A',
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  guidanceCardDesc: {
+  requestCompany: {
     fontSize: 12,
     color: '#64748B',
-    lineHeight: 17,
-    marginBottom: 12,
+    marginBottom: 6,
   },
-  guidanceBtnDark: {
+  requestDestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    marginTop: 2,
+  },
+  requestDestText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  requestClientText: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  requestMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  requestMetaText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  requestTimeText: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  quickEntryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0F203D',
+    backgroundColor: '#16A34A',
     borderRadius: 8,
-    paddingVertical: 9,
+    paddingVertical: 10,
+    marginTop: 10,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  guidanceBtnDarkText: {
-    color: colors.white,
+  quickEntryBtnText: {
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },
-  guidanceBtnGreen: {
+  quickPendingBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFBEB',
     borderWidth: 1,
-    borderColor: '#16A34A',
+    borderColor: '#FDE68A',
     borderRadius: 8,
-    paddingVertical: 9,
+    paddingVertical: 8,
+    marginTop: 10,
   },
-  guidanceBtnGreenText: {
-    color: '#16A34A',
-    fontSize: 13,
+  quickPendingBtnText: {
+    color: '#D97706',
+    fontSize: 12,
     fontWeight: '700',
   },
 
-  // Bottom Navigation Bar Exata do Mockup
+  // Barra de Navegação Inferior
   bottomTabBar: {
     position: 'absolute',
     bottom: 0,
@@ -961,7 +1167,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Menu / Configurações Hub Administrativo
+  // Hub Administrativo
   settingsHeader: {
     marginBottom: 16,
   },

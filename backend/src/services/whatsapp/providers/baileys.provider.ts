@@ -21,6 +21,7 @@ import {
   DEFAULT_REMINDER_TEMPLATE,
 } from '../templates/template.parser.js';
 import { env } from '../../../config/env.js';
+import { prisma } from '../../../lib/prisma.js';
 
 export class BaileysProvider implements IWhatsAppProvider {
   private sock: any = null;
@@ -29,6 +30,8 @@ export class BaileysProvider implements IWhatsAppProvider {
   };
   private messageListeners: Array<(msg: IncomingMessageEvent) => Promise<void>> = [];
   private baseSessionDir: string;
+  private saveTimeout: NodeJS.Timeout | null = null;
+  private isConnecting = false;
 
   constructor(sessionDir?: string) {
     this.baseSessionDir = sessionDir || env.WHATSAPP_SESSION_PATH;
@@ -37,10 +40,100 @@ export class BaileysProvider implements IWhatsAppProvider {
     }
   }
 
+  private debounceSaveToDb(organizationId: string, orgSessionPath: string) {
+    if (this.saveTimeout) clearTimeout(this.saveTimeout);
+    this.saveTimeout = setTimeout(() => {
+      this.saveSessionToDb(organizationId, orgSessionPath);
+    }, 2000);
+  }
+
+  public async saveSessionToDb(organizationId: string, orgSessionPath: string) {
+    if (!fs.existsSync(orgSessionPath)) return;
+    try {
+      const files = fs.readdirSync(orgSessionPath);
+      const sessionMap: Record<string, string> = {};
+      for (const f of files) {
+        const fullPath = path.join(orgSessionPath, f);
+        if (fs.statSync(fullPath).isFile()) {
+          sessionMap[f] = fs.readFileSync(fullPath, 'utf8');
+        }
+      }
+      const dataStr = JSON.stringify(sessionMap);
+      await prisma.systemSetting.upsert({
+        where: {
+          organizationId_key: {
+            organizationId,
+            key: 'whatsapp_session',
+          },
+        },
+        create: {
+          organizationId,
+          key: 'whatsapp_session',
+          value: dataStr,
+        },
+        update: {
+          value: dataStr,
+        },
+      });
+      console.log(`💾 [WhatsApp] Sessão da organização ${organizationId} persistida com sucesso no banco de dados!`);
+    } catch (err: any) {
+      console.warn(`Aviso ao persistir sessão no banco para ${organizationId}:`, err?.message || err);
+    }
+  }
+
+  public async restoreSessionFromDb(organizationId: string, orgSessionPath: string): Promise<boolean> {
+    try {
+      const setting = await prisma.systemSetting.findUnique({
+        where: {
+          organizationId_key: {
+            organizationId,
+            key: 'whatsapp_session',
+          },
+        },
+      });
+      if (!setting || !setting.value) return false;
+
+      if (!fs.existsSync(orgSessionPath)) {
+        fs.mkdirSync(orgSessionPath, { recursive: true });
+      }
+
+      const sessionMap: Record<string, string> = JSON.parse(setting.value);
+      for (const [filename, content] of Object.entries(sessionMap)) {
+        const fullPath = path.join(orgSessionPath, filename);
+        fs.writeFileSync(fullPath, content, 'utf8');
+      }
+      console.log(`📥 [WhatsApp] Sessão da organização ${organizationId} restaurada com sucesso do banco de dados (${Object.keys(sessionMap).length} arquivos)!`);
+      return true;
+    } catch (err: any) {
+      console.warn(`Aviso ao restaurar sessão do banco para ${organizationId}:`, err?.message || err);
+      return false;
+    }
+  }
+
   async connect(organizationId: string): Promise<void> {
+    if (this.isConnecting) return;
+    this.isConnecting = true;
+
+    // Se já havia um socket ativo, desconecta-o suavemente antes de recriar
+    if (this.sock) {
+      try {
+        this.sock.ev.removeAllListeners('connection.update');
+        this.sock.ev.removeAllListeners('creds.update');
+        this.sock.ev.removeAllListeners('messages.upsert');
+        this.sock.end(undefined);
+      } catch (e) {}
+      this.sock = null;
+    }
+
     const orgSessionPath = path.join(this.baseSessionDir, `org_${organizationId}`);
     if (!fs.existsSync(orgSessionPath)) {
       fs.mkdirSync(orgSessionPath, { recursive: true });
+    }
+
+    // 1. Tenta restaurar do banco de dados (Supabase) caso os arquivos não existam no disco (ex: novo deploy no Render)
+    const credsPath = path.join(orgSessionPath, 'creds.json');
+    if (!fs.existsSync(credsPath)) {
+      await this.restoreSessionFromDb(organizationId, orgSessionPath);
     }
 
     this.statusInfo.status = 'CONNECTING';
@@ -59,7 +152,12 @@ export class BaileysProvider implements IWhatsAppProvider {
       syncFullHistory: false,
     });
 
-    this.sock.ev.on('creds.update', saveCreds);
+    this.isConnecting = false;
+
+    this.sock.ev.on('creds.update', async () => {
+      await saveCreds();
+      this.debounceSaveToDb(organizationId, orgSessionPath);
+    });
 
     this.sock.ev.on('connection.update', async (update: any) => {
       const { connection, lastDisconnect, qr } = update;
@@ -200,6 +298,13 @@ export class BaileysProvider implements IWhatsAppProvider {
     if (fs.existsSync(orgSessionPath)) {
       fs.rmSync(orgSessionPath, { recursive: true, force: true });
     }
+
+    // Limpa credenciais persistidas no banco
+    try {
+      await prisma.systemSetting.deleteMany({
+        where: { organizationId, key: 'whatsapp_session' },
+      });
+    } catch (e) {}
   }
 
   async getStatus(_organizationId: string): Promise<WhatsAppStatusInfo> {

@@ -19,8 +19,8 @@ import {
   Mail,
   Lock,
   ArrowLeft,
-  CheckCircle2,
-  XCircle,
+  CircleCheck,
+  CircleX,
   Trash2,
   UserCheck,
 } from 'lucide-react-native';

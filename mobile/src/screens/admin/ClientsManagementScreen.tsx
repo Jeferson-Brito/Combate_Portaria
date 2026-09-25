@@ -21,7 +21,7 @@ import {
   ArrowLeft,
   Mail,
   Home,
-  CheckCircle2,
+  CircleCheck,
   MessageCircle,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';

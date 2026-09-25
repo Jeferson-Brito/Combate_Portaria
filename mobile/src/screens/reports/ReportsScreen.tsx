@@ -12,8 +12,8 @@ import {
 import {
   BarChart3,
   Clock,
-  CheckCircle2,
-  XCircle,
+  CircleCheck,
+  CircleX,
   Users,
   ShieldCheck,
   TrendingUp,
@@ -150,7 +150,7 @@ export const ReportsScreen: React.FC = () => {
             <View style={styles.kpiRow}>
               <View style={styles.halfCard}>
                 <View style={[styles.iconCircle, { backgroundColor: '#D1FAE5' }]}>
-                  <CheckCircle2 size={18} color="#10B981" />
+                  <CircleCheck size={18} color="#10B981" />
                 </View>
                 <Text style={styles.halfCardValue}>{metrics?.summary?.approvalRate ?? 100}%</Text>
                 <Text style={styles.halfCardLabel}>Taxa de Aprovação</Text>

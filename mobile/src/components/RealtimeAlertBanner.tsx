@@ -7,7 +7,7 @@ import {
   Animated,
   Platform,
 } from 'react-native';
-import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react-native';
+import { CircleCheck, CircleX, AlertTriangle, Info, X } from 'lucide-react-native';
 import { useRealtime } from '../contexts/RealtimeContext';
 import { colors } from '../theme/colors';
 
@@ -35,8 +35,8 @@ export const RealtimeAlertBanner: React.FC = () => {
     <View style={styles.container}>
       <View style={[styles.banner, { backgroundColor: bannerBg, borderColor }]}>
         <View style={styles.iconColumn}>
-          {isAuth && <CheckCircle2 size={28} color={colors.statusAuthorized} />}
-          {isDeny && <XCircle size={28} color={colors.statusDenied} />}
+          {isAuth && <CircleCheck size={28} color={colors.statusAuthorized} />}
+          {isDeny && <CircleX size={28} color={colors.statusDenied} />}
           {!isAuth && !isDeny && <Info size={28} color={colors.primaryLight} />}
         </View>
 

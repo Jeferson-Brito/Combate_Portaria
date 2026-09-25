@@ -17,7 +17,7 @@ import {
   Plus,
   Building,
   KeyRound,
-  CheckCircle2,
+  CircleCheck,
   Clock,
   Send,
   X,
@@ -217,7 +217,7 @@ export const PackagesScreen: React.FC<PackagesScreenProps> = ({ onBack }) => {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <CheckCircle2 size={48} color={colors.statusAuthorized} style={{ marginBottom: 12 }} />
+              <CircleCheck size={48} color={colors.statusAuthorized} style={{ marginBottom: 12 }} />
               <Text style={styles.emptyTitle}>Nenhuma encomenda pendente</Text>
               <Text style={styles.emptySub}>
                 Todas as encomendas foram retiradas pelos moradores.

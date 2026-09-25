@@ -35,17 +35,37 @@ export class WhatsAppService {
   public async autoRestoreSessions() {
     if (env.NODE_ENV === 'test') return;
 
-    const baseDir = env.WHATSAPP_SESSION_PATH;
-    if (!fs.existsSync(baseDir)) return;
-
     try {
+      // 1. Restaura sessões salvas no Supabase PostgreSQL para o disco (fundamental para o Render pós-deploy)
+      const dbSessions = await prisma.systemSetting.findMany({
+        where: { key: 'whatsapp_session' },
+      });
+
+      for (const item of dbSessions) {
+        const orgSessionPath = path.join(env.WHATSAPP_SESSION_PATH, `org_${item.organizationId}`);
+        if (!fs.existsSync(orgSessionPath)) {
+          fs.mkdirSync(orgSessionPath, { recursive: true });
+        }
+        try {
+          const files: Record<string, string> = JSON.parse(item.value);
+          for (const [file, content] of Object.entries(files)) {
+            fs.writeFileSync(path.join(orgSessionPath, file), content, 'utf8');
+          }
+          console.log(`📥 [WhatsApp] Sessão da organização ${item.organizationId} restaurada do Supabase (${Object.keys(files).length} arquivos).`);
+        } catch (e) {}
+      }
+
+      // 2. Conecta todas as organizações com credenciais prontas no disco
+      const baseDir = env.WHATSAPP_SESSION_PATH;
+      if (!fs.existsSync(baseDir)) return;
+
       const dirs = fs.readdirSync(baseDir, { withFileTypes: true });
       for (const d of dirs) {
         if (d.isDirectory() && d.name.startsWith('org_')) {
           const orgId = d.name.replace('org_', '');
           const credsPath = path.join(baseDir, d.name, 'creds.json');
           if (fs.existsSync(credsPath)) {
-            console.log(`🔄 [WhatsApp] Restaurando sessão salva da organização: ${orgId}...`);
+            console.log(`🔄 [WhatsApp] Conectando sessão salva da organização: ${orgId}...`);
             const provider = this.getProvider(orgId);
             provider.connect(orgId).catch((err: any) => {
               console.warn(`Aviso: falha ao auto-restaurar WhatsApp para org ${orgId}:`, err?.message || err);

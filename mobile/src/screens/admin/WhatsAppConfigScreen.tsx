@@ -17,8 +17,8 @@ import {
   WifiOff,
   RefreshCw,
   Send,
-  CheckCircle,
-  XCircle,
+  CircleCheck,
+  CircleX,
   MessageSquare,
   HelpCircle,
   Power,
@@ -417,7 +417,7 @@ export const WhatsAppConfigScreen: React.FC<WhatsAppConfigScreenProps> = ({ onBa
                 onPress={() => handleSimulateResponse('1')}
                 disabled={isSimulating}
               >
-                <CheckCircle size={18} color={colors.white} style={{ marginRight: 6 }} />
+                <CircleCheck size={18} color={colors.white} style={{ marginRight: 6 }} />
                 <Text style={styles.simButtonText}>Enviar "1" (Autorizar)</Text>
               </TouchableOpacity>
 
@@ -427,7 +427,7 @@ export const WhatsAppConfigScreen: React.FC<WhatsAppConfigScreenProps> = ({ onBa
                 onPress={() => handleSimulateResponse('2')}
                 disabled={isSimulating}
               >
-                <XCircle size={18} color={colors.white} style={{ marginRight: 6 }} />
+                <CircleX size={18} color={colors.white} style={{ marginRight: 6 }} />
                 <Text style={styles.simButtonText}>Enviar "2" (Recusar)</Text>
               </TouchableOpacity>
             </View>

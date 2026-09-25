@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { X, Calendar, Clock, CheckCircle2, UserCheck, ShieldCheck } from 'lucide-react-native';
+import { X, Calendar, Clock, CircleCheck, UserCheck, ShieldCheck } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { ClientAutocomplete, ClientDestinationItem } from '../../components/ClientAutocomplete';
 import { api } from '../../config/api';
@@ -246,7 +246,7 @@ export const NewPreAuthorizationModal: React.FC<NewPreAuthorizationModalProps> =
                 <ActivityIndicator color={colors.white} />
               ) : (
                 <>
-                  <CheckCircle2 size={20} color={colors.white} style={{ marginRight: 8 }} />
+                  <CircleCheck size={20} color={colors.white} style={{ marginRight: 8 }} />
                   <Text style={styles.submitButtonText}>SALVAR PRÉ-AUTORIZAÇÃO</Text>
                 </>
               )}

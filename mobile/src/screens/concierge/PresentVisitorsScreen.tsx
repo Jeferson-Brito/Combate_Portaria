@@ -19,7 +19,7 @@ import {
   LogOut,
   Car,
   Briefcase,
-  CheckCircle,
+  CircleCheck,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { api } from '../../config/api';

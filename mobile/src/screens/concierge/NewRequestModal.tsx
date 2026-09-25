@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { X, Send, CheckCircle, ArrowRight, ShieldAlert } from 'lucide-react-native';
+import { X, Send, CircleCheck, ArrowRight, ShieldAlert } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { api } from '../../config/api';
 import { ClientAutocomplete, ClientDestinationItem } from '../../components/ClientAutocomplete';

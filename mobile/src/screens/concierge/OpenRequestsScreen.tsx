@@ -15,8 +15,8 @@ import {
   Building,
   User,
   Car,
-  CheckCircle,
-  XCircle,
+  CircleCheck,
+  CircleX,
   AlertTriangle,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
@@ -249,7 +249,7 @@ export const OpenRequestsScreen: React.FC<{ hideHeader?: boolean }> = ({ hideHea
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <CheckCircle size={48} color={colors.statusAuthorized} style={{ marginBottom: 12 }} />
+            <CircleCheck size={48} color={colors.statusAuthorized} style={{ marginBottom: 12 }} />
             <Text style={styles.emptyTitle}>Tudo em dia!</Text>
             <Text style={styles.emptySubtitle}>
               Não há nenhuma solicitação aguardando autorização no momento.
@@ -320,7 +320,7 @@ export const OpenRequestsScreen: React.FC<{ hideHeader?: boolean }> = ({ hideHea
                 onPress={() => handleManualAuthorize(item)}
                 activeOpacity={0.8}
               >
-                <CheckCircle size={15} color={colors.white} style={{ marginRight: 4 }} />
+                <CircleCheck size={15} color={colors.white} style={{ marginRight: 4 }} />
                 <Text style={styles.authorizeButtonText}>Liberar</Text>
               </TouchableOpacity>
 
@@ -329,7 +329,7 @@ export const OpenRequestsScreen: React.FC<{ hideHeader?: boolean }> = ({ hideHea
                 onPress={() => handleCancel(item)}
                 activeOpacity={0.8}
               >
-                <XCircle size={15} color={colors.statusDenied} />
+                <CircleX size={15} color={colors.statusDenied} />
               </TouchableOpacity>
             </View>
           </View>
