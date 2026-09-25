@@ -12,6 +12,8 @@ import {
   RefreshControl,
   ScrollView,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import {
   Package,

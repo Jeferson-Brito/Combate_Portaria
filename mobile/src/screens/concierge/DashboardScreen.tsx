@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import {
   Clock,
@@ -79,6 +80,9 @@ export const DashboardScreen: React.FC = () => {
     requestId: string;
     visitorName: string;
   }>({ visible: false, requestId: '', visitorName: '' });
+  const [detailModal, setDetailModal] = useState<{ visible: boolean; request: any | null }>(
+    { visible: false, request: null }
+  );
   const [orgProfile, setOrgProfile] = useState<{
     companyName?: string;
     unitLabel?: string;
@@ -372,7 +376,7 @@ export const DashboardScreen: React.FC = () => {
 
     // Dashboard Tab Principal com Cabeçalho FIXO no Topo (Item 5)
     return (
-      <View style={{ flex: 1, backgroundColor: '#0F203D' }}>
+      <View style={{ flex: 1, backgroundColor: '#F1F5F9' }}>
         {/* Cabeçalho FIXO no Topo - Não scrola junto com a tela */}
         <View style={[styles.header, { paddingTop: topInset }]}>
           <View style={styles.headerTopRow}>
@@ -427,7 +431,7 @@ export const DashboardScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.bodyContainer}>
-            {/* Ação Principal Hero: Nova Visita em Grande Destaque (Item 2) */}
+            {/* Ação Principal Hero: Nova Solicitação em Grande Destaque */}
             <TouchableOpacity
               style={styles.heroNewVisitBtn}
               onPress={() => setIsModalOpen(true)}
@@ -437,13 +441,7 @@ export const DashboardScreen: React.FC = () => {
                 <Plus size={32} color="#FFFFFF" strokeWidth={3} />
               </View>
               <View style={{ flex: 1, marginLeft: 14 }}>
-                <View style={styles.heroNewVisitBadge}>
-                  <Text style={styles.heroNewVisitBadgeText}>REGISTRO RÁPIDO</Text>
-                </View>
-                <Text style={styles.heroNewVisitTitle}>+ Nova Visita</Text>
-                <Text style={styles.heroNewVisitSubtitle}>
-                  Registrar entrada de visitante ou prestador
-                </Text>
+                <Text style={styles.heroNewVisitTitle}>+ Nova Solicitação</Text>
               </View>
               <ChevronRight size={24} color="#FFFFFF" />
             </TouchableOpacity>
@@ -565,10 +563,10 @@ export const DashboardScreen: React.FC = () => {
                     minute: '2-digit',
                   });
 
-                  const clientName = req.client?.name || req.destination?.name || 'Cliente';
+                  const clientName = req.client?.name || req.client?.ownerName || req.destination?.name || req.destination?.ownerName || 'Responsável';
 
                   return (
-                    <View
+                    <TouchableOpacity
                       key={req.id}
                       style={[
                         styles.compactCard,
@@ -577,6 +575,8 @@ export const DashboardScreen: React.FC = () => {
                         isEntered && styles.compactCardEntered,
                         isDenied && styles.compactCardDenied,
                       ]}
+                      onPress={() => setDetailModal({ visible: true, request: req })}
+                      activeOpacity={0.82}
                     >
                       <View style={styles.compactCardBody}>
                         {/* Linha 1: Nome do Visitante + Badge de Status */}
@@ -613,10 +613,10 @@ export const DashboardScreen: React.FC = () => {
                           </View>
                         </View>
 
-                        {/* Linha 2: Cliente que está visitando + Horário */}
+                        {/* Linha 2: Responsável que autorizou / vai autorizar + Horário */}
                         <View style={styles.compactCardFooter}>
                           <Text style={styles.compactClientName} numberOfLines={1}>
-                            Visita: <Text style={styles.compactClientHighlight}>{clientName}</Text>
+                            Resp.: <Text style={styles.compactClientHighlight}>{clientName}</Text>
                           </Text>
 
                           <View style={styles.compactTimeRow}>
@@ -644,7 +644,7 @@ export const DashboardScreen: React.FC = () => {
                           )}
                         </TouchableOpacity>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })
               )}
@@ -797,7 +797,7 @@ export const DashboardScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Modal Nova Visita */}
+        {/* Modal Nova Solicitação */}
         <NewRequestModal
           visible={isModalOpen}
           onClose={() => setIsModalOpen(false)}
@@ -825,7 +825,7 @@ export const DashboardScreen: React.FC = () => {
           }}
         />
 
-        {/* Custom Confirmation Modal para Entrada (Item 7) */}
+        {/* Custom Confirmation Modal para Entrada */}
         <CustomConfirmModal
           visible={confirmEntryModal.visible}
           type="success"
@@ -837,6 +837,109 @@ export const DashboardScreen: React.FC = () => {
           onConfirm={executeRegisterEntry}
           onCancel={() => setConfirmEntryModal({ visible: false, requestId: '', visitorName: '' })}
         />
+
+        {/* Modal Detalhes da Solicitação */}
+        <Modal
+          visible={detailModal.visible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setDetailModal({ visible: false, request: null })}
+        >
+          <View style={styles.detailOverlay}>
+            <View style={styles.detailSheet}>
+              {/* Handle */}
+              <View style={styles.detailHandle} />
+
+              {detailModal.request && (() => {
+                const req = detailModal.request;
+                const isPending = req.status === 'PENDING';
+                const isAuthorized = req.status === 'AUTHORIZED';
+                const isEntered = req.status === 'ENTERED';
+                const statusLabel = isPending ? 'Aguardando' : isAuthorized ? 'Autorizado' : isEntered ? 'No Local' : 'Recusado';
+                const statusColor = isPending ? '#D97706' : isAuthorized ? '#16A34A' : isEntered ? '#2563EB' : '#DC2626';
+                const statusBg = isPending ? '#FEF3C7' : isAuthorized ? '#DCFCE7' : isEntered ? '#DBEAFE' : '#FEE2E2';
+                const createdDate = new Date(req.createdAt);
+                const dateStr = createdDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const timeStr = createdDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const clientName = req.client?.name || req.client?.ownerName || req.destination?.name || req.destination?.ownerName || '—';
+                return (
+                  <>
+                    <View style={styles.detailHeaderRow}>
+                      <Text style={styles.detailTitle}>Detalhes da Solicitação</Text>
+                      <TouchableOpacity
+                        onPress={() => setDetailModal({ visible: false, request: null })}
+                        style={styles.detailCloseBtn}
+                      >
+                        <CircleX size={24} color="#64748B" />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={[styles.detailStatusBadge, { backgroundColor: statusBg }]}>
+                      <Text style={[styles.detailStatusText, { color: statusColor }]}>{statusLabel.toUpperCase()}</Text>
+                    </View>
+
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Visitante</Text>
+                      <Text style={styles.detailValue}>{req.visitor?.name || '—'}</Text>
+                    </View>
+                    {req.visitor?.document && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Documento</Text>
+                        <Text style={styles.detailValue}>{req.visitor.document}</Text>
+                      </View>
+                    )}
+                    {req.visitor?.phone && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Telefone</Text>
+                        <Text style={styles.detailValue}>{req.visitor.phone}</Text>
+                      </View>
+                    )}
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Responsável</Text>
+                      <Text style={styles.detailValue}>{clientName}</Text>
+                    </View>
+                    {(req.destination?.unit || req.client?.unit) && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Unidade / Sala</Text>
+                        <Text style={styles.detailValue}>{req.destination?.unit || req.client?.unit}</Text>
+                      </View>
+                    )}
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Data/Hora</Text>
+                      <Text style={styles.detailValue}>{dateStr} às {timeStr}</Text>
+                    </View>
+                    {req.purpose && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Motivo</Text>
+                        <Text style={styles.detailValue}>{req.purpose}</Text>
+                      </View>
+                    )}
+                    {req.notes && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Observações</Text>
+                        <Text style={styles.detailValue}>{req.notes}</Text>
+                      </View>
+                    )}
+
+                    {isAuthorized && (
+                      <TouchableOpacity
+                        style={styles.detailEntryBtn}
+                        onPress={() => {
+                          setDetailModal({ visible: false, request: null });
+                          handleRegisterEntry(req.id, req.visitor?.name);
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <LogIn size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Text style={styles.detailEntryBtnText}>Registrar Entrada</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                );
+              })()}
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -1380,4 +1483,93 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 8,
   },
+  // Modal de Detalhes da Solicitacao
+  detailOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  detailSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 32,
+  },
+  detailHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  detailHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  detailTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  detailCloseBtn: {
+    padding: 4,
+  },
+  detailStatusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginBottom: 14,
+  },
+  detailStatusText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  detailLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+    flex: 1,
+  },
+  detailValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    flex: 2,
+    textAlign: 'right',
+  },
+  detailEntryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#16A34A',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 18,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  detailEntryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
 });
