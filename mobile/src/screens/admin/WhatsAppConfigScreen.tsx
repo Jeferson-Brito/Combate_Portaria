@@ -26,6 +26,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { api } from '../../config/api';
+import { AppHeader } from '../../components/AppHeader';
 
 interface WhatsAppStatusData {
   status: 'DISCONNECTED' | 'CONNECTING' | 'QR_READY' | 'CONNECTED';
@@ -221,38 +222,14 @@ export const WhatsAppConfigScreen: React.FC<WhatsAppConfigScreenProps> = ({ onBa
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {onBack && (
-        <TouchableOpacity
-          onPress={onBack}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginBottom: 16,
-            paddingVertical: 8,
-          }}
-          activeOpacity={0.7}
-        >
-          <View
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: '#EDE9FE',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 10,
-            }}
-          >
-            <ArrowLeft size={20} color={colors.primary} />
-          </View>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.textPrimary }}>
-            Voltar ao Início
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Card de Status da Conexão */}
+    <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+      <AppHeader
+        title="Conexão WhatsApp"
+        subtitle="Aparelhos conectados, QR Code ao vivo e status"
+        onBack={onBack}
+      />
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* Card de Status da Conexão */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -454,6 +431,7 @@ export const WhatsAppConfigScreen: React.FC<WhatsAppConfigScreenProps> = ({ onBa
       </View>
       )}
     </ScrollView>
+    </View>
   );
 };
 

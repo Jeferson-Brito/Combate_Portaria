@@ -47,5 +47,6 @@ export interface IWhatsAppProvider {
   sendApprovalRequest(data: ApprovalRequestMessageData): Promise<{ messageId: string }>;
   sendReminder(data: ReminderMessageData): Promise<{ messageId: string }>;
   sendMessage(toPhone: string, text: string): Promise<{ messageId: string }>;
+  sendImageMessage?(toPhone: string, imageBase64OrUrl: string, caption?: string): Promise<{ messageId: string }>;
   onMessageReceived(callback: (msg: IncomingMessageEvent) => Promise<void>): void;
 }

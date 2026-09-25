@@ -24,6 +24,7 @@ import {
 import { colors } from '../../theme/colors';
 import { api } from '../../config/api';
 import { useRealtime } from '../../contexts/RealtimeContext';
+import { AppHeader } from '../../components/AppHeader';
 
 interface PresentVisitorItem {
   id: string;
@@ -236,6 +237,12 @@ export const PresentVisitorsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <AppHeader
+        title="Visitantes no Local"
+        subtitle="Pessoas com entrada registrada atualmente presentes"
+        badge={filteredVisitors.length}
+      />
+
       {/* Barra de Busca e Contador */}
       <View style={styles.topBar}>
         <View style={styles.searchBar}>

@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BarChart3,
   Clock,
@@ -58,10 +60,12 @@ export const ReportsScreen: React.FC = () => {
     loadData();
   };
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0) + 14;
+
   return (
     <View style={styles.container}>
-      {/* Header Estilo Nubank */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding }]}>
         <View style={styles.headerTitleRow}>
           <BarChart3 size={24} color={colors.white} />
           <Text style={styles.headerTitle}>Relatórios & Métricas</Text>
@@ -354,10 +358,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F1F5',
   },
   header: {
-    backgroundColor: colors.primary,
-    paddingTop: Platform.OS === 'ios' ? 54 : 32,
+    backgroundColor: '#0F203D',
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   headerTitleRow: {
     flexDirection: 'row',

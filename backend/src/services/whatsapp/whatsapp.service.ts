@@ -317,10 +317,14 @@ export class WhatsAppService {
         visitorCompany: req.visitor.company || undefined,
         visitorType: req.visitorType,
         visitReason: req.visitReason,
-        arrivalFormattedTime: req.createdAt.toLocaleTimeString('pt-BR', {
+        arrivalFormattedTime: `${req.createdAt.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        })} às ${req.createdAt.toLocaleTimeString('pt-BR', {
           hour: '2-digit',
           minute: '2-digit',
-        }),
+        })}`,
         vehicleModel: req.vehicle?.model,
         vehiclePlate: req.vehicle?.licensePlate || undefined,
         requestCode: req.code,
@@ -380,6 +384,24 @@ export class WhatsAppService {
   public async sendMessage(organizationId: string, toPhone: string, text: string): Promise<{ messageId: string }> {
     const provider = this.getProvider(organizationId);
     return provider.sendMessage(toPhone, text);
+  }
+
+  // Envio de imagem com legenda (ex: foto de encomenda na portaria)
+  public async sendImageMessage(
+    organizationId: string,
+    toPhone: string,
+    imageBase64OrUrl: string,
+    caption?: string
+  ): Promise<{ messageId: string }> {
+    const provider = this.getProvider(organizationId);
+    if (provider.sendImageMessage) {
+      try {
+        return await provider.sendImageMessage(toPhone, imageBase64OrUrl, caption);
+      } catch (err: any) {
+        console.warn(`[WhatsAppService] Falha ao enviar imagem (${err.message}). Enviando mensagem de texto como fallback...`);
+      }
+    }
+    return provider.sendMessage(toPhone, caption || '');
   }
 }
 

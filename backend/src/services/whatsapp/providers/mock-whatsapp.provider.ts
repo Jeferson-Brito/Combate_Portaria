@@ -72,6 +72,12 @@ export class MockWhatsAppProvider implements IWhatsAppProvider {
     return { messageId };
   }
 
+  async sendImageMessage(toPhone: string, imageBase64OrUrl: string, caption?: string): Promise<{ messageId: string }> {
+    const messageId = `mock_img_${Date.now()}`;
+    this.sentMessages.push({ to: toPhone, text: caption || '', data: { image: imageBase64OrUrl, caption } });
+    return { messageId };
+  }
+
   onMessageReceived(callback: (msg: IncomingMessageEvent) => Promise<void>): void {
     this.messageListeners.push(callback);
   }

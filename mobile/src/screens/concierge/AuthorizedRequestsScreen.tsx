@@ -24,6 +24,7 @@ import {
 import { colors } from '../../theme/colors';
 import { api } from '../../config/api';
 import { useRealtime } from '../../contexts/RealtimeContext';
+import { AppHeader } from '../../components/AppHeader';
 
 interface AuthorizedItem {
   id: string;
@@ -197,6 +198,12 @@ export const AuthorizedRequestsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <AppHeader
+        title="Visitas Autorizadas"
+        subtitle="Liberados pelo morador aguardando entrada física"
+        badge={items.length}
+      />
+
       {/* Top Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>

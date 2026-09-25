@@ -95,14 +95,22 @@ export class PackagesService {
       package: pkg,
     });
 
-    // 5. Notifica o Morador pelo WhatsApp automaticamente se houver número cadastrado
+    // 5. Notifica o Morador/Responsável pelo WhatsApp automaticamente com foto
     if (client?.whatsappNumber) {
       const destText = `${destination.name}${destination.block ? ' - ' + destination.block : ''}`;
-      const msg = `📦 *NOVA ENCOMENDA CHEGOU NA PORTARIA*\n\nOlá, *${client.name}*!\nUma encomenda acabou de ser recebida na guarita para *${destText}*.\n\n• *Transportadora / Remetente:* ${pkg.carrier || 'Entrega'}${pkg.sender ? ' (' + pkg.sender + ')' : ''}\n• *Rastreio:* ${pkg.trackingCode || 'Sem rastreio'}\n• 🔑 *CÓDIGO DE RETIRADA:* *${pkg.pickupCode}*\n\nPor favor, informe este código de 4 dígitos ao porteiro ao retirar seu pacote.`;
+      const dateFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const timeFormatted = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const msg = `📦 *NOVA ENCOMENDA RECEBIDA NA PORTARIA*\n\nOlá, *${client.name}*!\nUma encomenda acabou de ser recebida na guarita para *${destText}*.\n\n• 📅 *Data e Horário:* ${dateFormatted} às ${timeFormatted}\n• 🚚 *Transportadora / Remetente:* ${pkg.carrier || 'Entrega'}${pkg.sender ? ' (' + pkg.sender + ')' : ''}\n• 🔖 *Código da Entrega:* ${pkg.code}\n• 📦 *Rastreio:* ${pkg.trackingCode || 'Sem rastreio'}\n• 🔑 *CÓDIGO DE RETIRADA:* *${pkg.pickupCode}*\n\n📸 *Comprovante fotográfico:* Segue a foto da encomenda anexada para comprovar o recebimento.\n\nPor favor, informe este código de 4 dígitos ao porteiro ao retirar seu pacote.`;
 
-      whatsappService.sendMessage(data.organizationId, client.whatsappNumber, msg).catch((err) => {
-        console.warn('Erro ao disparar WhatsApp de encomenda:', err.message);
-      });
+      if (pkg.photoUrl) {
+        whatsappService.sendImageMessage(data.organizationId, client.whatsappNumber, pkg.photoUrl, msg).catch((err) => {
+          console.warn('Erro ao disparar WhatsApp com foto de encomenda:', err.message);
+        });
+      } else {
+        whatsappService.sendMessage(data.organizationId, client.whatsappNumber, msg).catch((err) => {
+          console.warn('Erro ao disparar WhatsApp de encomenda:', err.message);
+        });
+      }
     }
 
     return pkg;
@@ -140,7 +148,14 @@ export class PackagesService {
     return packages;
   }
 
-  async pickup(packageId: string, organizationId: string, conciergeUserId: string, pickupCode: string, pickedUpBy?: string) {
+  async pickup(
+    packageId: string,
+    organizationId: string,
+    conciergeUserId: string,
+    pickupCode?: string,
+    pickedUpBy?: string,
+    directPickup?: boolean
+  ) {
     const pkg = await prisma.package.findUnique({
       where: { id: packageId },
       include: {
@@ -157,9 +172,11 @@ export class PackagesService {
       throw new Error(`Esta encomenda já está com status ${pkg.status}.`);
     }
 
-    // Validação estrita do código de 4 dígitos
-    if (pkg.pickupCode !== pickupCode.trim()) {
-      throw new Error('Código de retirada incorreto! Solicite o código de 4 dígitos que o morador recebeu no WhatsApp.');
+    // Se não for liberação direta pelo porteiro, valida código de 4 dígitos
+    if (!directPickup && pickupCode) {
+      if (pkg.pickupCode !== pickupCode.trim()) {
+        throw new Error('Código de retirada incorreto! Solicite o código de 4 dígitos que o cliente recebeu no WhatsApp.');
+      }
     }
 
     const updated = await prisma.package.update({
@@ -167,7 +184,7 @@ export class PackagesService {
       data: {
         status: 'PICKED_UP',
         pickedUpAt: new Date(),
-        pickedUpBy: pickedUpBy || pkg.client?.name || pkg.recipientName || 'Morador',
+        pickedUpBy: pickedUpBy || pkg.client?.name || pkg.recipientName || 'Cliente/Morador',
         conciergeDeliveredUserId: conciergeUserId,
       },
       include: {

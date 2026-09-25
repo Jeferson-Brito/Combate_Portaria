@@ -10,7 +10,10 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   User,
   Plus,
@@ -117,10 +120,13 @@ export const UsersManagementScreen: React.FC<UsersManagementScreenProps> = ({ on
     }
   };
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0) + 14;
+
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding }]}>
         <View style={styles.headerRow}>
           {onBack && (
             <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>

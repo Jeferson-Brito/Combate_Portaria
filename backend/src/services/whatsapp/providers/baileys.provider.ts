@@ -419,6 +419,32 @@ export class BaileysProvider implements IWhatsAppProvider {
     return { messageId: sent?.key.id || `msg_${Date.now()}` };
   }
 
+  async sendImageMessage(toPhone: string, imageBase64OrUrl: string, caption?: string): Promise<{ messageId: string }> {
+    if (this.statusInfo.status !== 'CONNECTED' || !this.sock) {
+      throw new Error('WhatsApp não está conectado no momento.');
+    }
+
+    const jid = toPhone.includes('@') ? toPhone : await this.resolveJid(toPhone);
+    console.log(`🚀 [Baileys] Enviando imagem para JID: ${jid}...`);
+
+    let imageContent: any;
+    if (imageBase64OrUrl.startsWith('data:image')) {
+      const base64Data = imageBase64OrUrl.split(',')[1];
+      imageContent = Buffer.from(base64Data, 'base64');
+    } else if (imageBase64OrUrl.startsWith('http://') || imageBase64OrUrl.startsWith('https://')) {
+      imageContent = { url: imageBase64OrUrl };
+    } else {
+      imageContent = Buffer.from(imageBase64OrUrl, 'base64');
+    }
+
+    const sent = await this.sock.sendMessage(jid, {
+      image: imageContent,
+      caption: caption || '',
+    });
+    console.log(`✅ [Baileys] Imagem enviada com sucesso! ID: ${sent?.key?.id}`);
+    return { messageId: sent?.key.id || `img_${Date.now()}` };
+  }
+
   onMessageReceived(callback: (msg: IncomingMessageEvent) => Promise<void>): void {
     this.messageListeners.push(callback);
   }

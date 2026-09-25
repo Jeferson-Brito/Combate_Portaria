@@ -37,7 +37,7 @@ Há um visitante aguardando sua autorização na portaria.
 🏢 *Empresa:* {{empresa}}
 📋 *Tipo:* {{tipo}}
 🎯 *Motivo:* {{motivo}}
-⏰ *Chegada:* {{horario}}
+📅 *Data e Horário:* {{horario}}
 🚗 *Veículo:* {{veiculo}}
 🔖 *Solicitação:* {{codigo}}
 

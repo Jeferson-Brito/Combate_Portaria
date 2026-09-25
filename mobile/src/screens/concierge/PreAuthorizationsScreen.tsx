@@ -27,6 +27,7 @@ import { colors } from '../../theme/colors';
 import { api } from '../../config/api';
 import { useRealtime } from '../../contexts/RealtimeContext';
 import { NewPreAuthorizationModal } from './NewPreAuthorizationModal';
+import { AppHeader } from '../../components/AppHeader';
 
 interface PreAuthorizationsScreenProps {
   onBack?: () => void;
@@ -216,14 +217,12 @@ export const PreAuthorizationsScreen: React.FC<PreAuthorizationsScreenProps> = (
 
   return (
     <View style={styles.container}>
-      {onBack && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderColor: '#F1F5F9' }}>
-          <TouchableOpacity onPress={onBack} style={{ padding: 6, marginRight: 10 }} activeOpacity={0.7}>
-            <ArrowLeft size={22} color="#0F172A" />
-          </TouchableOpacity>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: '#0F172A' }}>Pré-Autorizações de Hoje</Text>
-        </View>
-      )}
+      <AppHeader
+        title="Visitas Agendadas"
+        subtitle="Pré-autorizações cadastradas"
+        onBack={onBack}
+        badge={items.length}
+      />
 
       {/* Barra Superior: Busca e Botão + Nova Pré-Autorização */}
       <View style={styles.topActionsRow}>

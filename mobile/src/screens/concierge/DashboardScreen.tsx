@@ -48,15 +48,34 @@ import { PackagesScreen } from '../packages/PackagesScreen';
 import { WhatsAppConfigScreen } from '../admin/WhatsAppConfigScreen';
 import { UsersManagementScreen } from '../admin/UsersManagementScreen';
 import { ClientsManagementScreen } from '../admin/ClientsManagementScreen';
+import { OrganizationProfileScreen } from '../admin/OrganizationProfileScreen';
 import { ReportsScreen } from '../reports/ReportsScreen';
+import { AppHeader } from '../../components/AppHeader';
 import { useRealtime, RealtimeAlert } from '../../contexts/RealtimeContext';
 
 export const DashboardScreen: React.FC = () => {
   const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'pending' | 'authorized' | 'present' | 'packages' | 'reports' | 'whatsapp' | 'settings' | 'users_mgmt' | 'clients_mgmt' | 'preauthorizations'
+    | 'dashboard'
+    | 'pending'
+    | 'authorized'
+    | 'present'
+    | 'packages'
+    | 'reports'
+    | 'whatsapp'
+    | 'settings'
+    | 'users_mgmt'
+    | 'clients_mgmt'
+    | 'preauthorizations'
+    | 'org_profile'
   >('dashboard');
+  const [orgProfile, setOrgProfile] = useState<{
+    companyName?: string;
+    unitLabel?: string;
+    clientLabel?: string;
+    type?: string;
+  }>({});
   const [packagesCount, setPackagesCount] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
@@ -108,8 +127,18 @@ export const DashboardScreen: React.FC = () => {
     }
   }, []);
 
+  const fetchOrgProfile = useCallback(async () => {
+    try {
+      const res = await api.get('/organizations/current');
+      if (res.data?.success && res.data?.data?.profile) {
+        setOrgProfile(res.data.data.profile);
+      }
+    } catch (e) {}
+  }, []);
+
   useEffect(() => {
     fetchSummaryAndRequests();
+    fetchOrgProfile();
 
     const unsubCreated = addListener('visit_request:created', fetchSummaryAndRequests);
     const unsubUpdated = addListener('visit_request:updated', fetchSummaryAndRequests);
@@ -130,7 +159,7 @@ export const DashboardScreen: React.FC = () => {
       unsubAlert();
       clearInterval(interval);
     };
-  }, [addListener, fetchSummaryAndRequests]);
+  }, [addListener, fetchSummaryAndRequests, fetchOrgProfile]);
 
   const handleRegisterEntry = async (requestId: string, visitorName: string) => {
     try {
@@ -147,6 +176,7 @@ export const DashboardScreen: React.FC = () => {
     }
   };
 
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0) + 14;
   const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 12);
 
   const renderContent = () => {
@@ -159,95 +189,120 @@ export const DashboardScreen: React.FC = () => {
     if (activeTab === 'users_mgmt') return <UsersManagementScreen onBack={() => setActiveTab('settings')} />;
     if (activeTab === 'clients_mgmt') return <ClientsManagementScreen onBack={() => setActiveTab('settings')} />;
     if (activeTab === 'reports') return <ReportsScreen />;
+    if (activeTab === 'org_profile') {
+      return (
+        <OrganizationProfileScreen
+          onBack={() => setActiveTab('settings')}
+          onSaved={() => {
+            fetchOrgProfile();
+            fetchSummaryAndRequests();
+          }}
+        />
+      );
+    }
 
     if (activeTab === 'settings') {
       return (
-        <ScrollView
-          style={{ flex: 1, backgroundColor: '#F8FAFC' }}
-          contentContainerStyle={{ padding: 18, paddingBottom: bottomInset + 80 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header do Menu */}
-          <View style={styles.settingsHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-              <TouchableOpacity
-                onPress={() => setActiveTab('dashboard')}
-                style={{ marginRight: 10, padding: 4 }}
-                activeOpacity={0.7}
-              >
-                <ChevronRight size={22} color="#0F172A" style={{ transform: [{ rotate: '180deg' }] }} />
-              </TouchableOpacity>
-              <Text style={styles.settingsSectionTitle}>Painel & Cadastros</Text>
-            </View>
-            <Text style={styles.settingsSectionSubtitle}>
-              Cadastre e gerencie a equipe da portaria, moradores e integrações.
-            </Text>
-          </View>
-
-          {/* Card 1: Cadastrar & Gerenciar Porteiros */}
-          <TouchableOpacity
-            style={styles.menuCard}
-            onPress={() => setActiveTab('users_mgmt')}
-            activeOpacity={0.85}
+        <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+          <AppHeader
+            title="Configurações & Cadastros"
+            subtitle="Gestão do posto, operadores, unidades e conexões"
+            onBack={() => setActiveTab('dashboard')}
+          />
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: 18, paddingBottom: bottomInset + 80 }}
+            showsVerticalScrollIndicator={false}
           >
-            <View style={[styles.menuIconContainer, { backgroundColor: '#DBEAFE' }]}>
-              <UserCheck size={22} color="#1D4ED8" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={styles.menuCardTitle}>Cadastrar & Gerenciar Porteiros</Text>
-              <Text style={styles.menuCardSubtitle}>
-                Adicione operadores, defina senhas e perfis de acesso.
-              </Text>
-            </View>
-            <ChevronRight size={18} color="#94A3B8" />
-          </TouchableOpacity>
+            {/* Card 0: Perfil do Estabelecimento / Empresa */}
+            <TouchableOpacity
+              style={styles.menuCard}
+              onPress={() => setActiveTab('org_profile')}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.menuIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                <Building size={22} color="#D97706" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={styles.menuCardTitle}>Perfil do Estabelecimento / Empresa</Text>
+                <Text style={styles.menuCardSubtitle}>
+                  {orgProfile.companyName
+                    ? `${orgProfile.companyName} (${orgProfile.type || 'Personalizado'})`
+                    : 'Defina o segmento: Residencial, Comercial, Clínica, etc.'}
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#94A3B8" />
+            </TouchableOpacity>
 
-          {/* Card 2: Cadastrar & Gerenciar Moradores */}
-          <TouchableOpacity
-            style={styles.menuCard}
-            onPress={() => setActiveTab('clients_mgmt')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.menuIconContainer, { backgroundColor: '#DCFCE7' }]}>
-              <Building2 size={22} color="#16A34A" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={styles.menuCardTitle}>Cadastrar & Gerenciar Moradores</Text>
-              <Text style={styles.menuCardSubtitle}>
-                Cadastre apartamentos, residentes e números de WhatsApp.
-              </Text>
-            </View>
-            <ChevronRight size={18} color="#94A3B8" />
-          </TouchableOpacity>
+            {/* Card 1: Cadastrar & Gerenciar Porteiros */}
+            <TouchableOpacity
+              style={styles.menuCard}
+              onPress={() => setActiveTab('users_mgmt')}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.menuIconContainer, { backgroundColor: '#DBEAFE' }]}>
+                <UserCheck size={22} color="#1D4ED8" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={styles.menuCardTitle}>Cadastrar & Gerenciar Porteiros</Text>
+                <Text style={styles.menuCardSubtitle}>
+                  Adicione operadores, defina senhas e perfis de acesso.
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#94A3B8" />
+            </TouchableOpacity>
 
-          {/* Card 3: Conexão WhatsApp */}
-          <TouchableOpacity
-            style={styles.menuCard}
-            onPress={() => setActiveTab('whatsapp')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.menuIconContainer, { backgroundColor: '#EDE9FE' }]}>
-              <MessageSquare size={22} color="#7C3AED" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={styles.menuCardTitle}>Conexão WhatsApp (Baileys)</Text>
-              <Text style={styles.menuCardSubtitle}>
-                Aparelhos conectados, QR Code ao vivo e status.
-              </Text>
-            </View>
-            <ChevronRight size={18} color="#94A3B8" />
-          </TouchableOpacity>
+            {/* Card 2: Cadastrar & Gerenciar Destinos / Clientes */}
+            <TouchableOpacity
+              style={styles.menuCard}
+              onPress={() => setActiveTab('clients_mgmt')}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.menuIconContainer, { backgroundColor: '#DCFCE7' }]}>
+                <Building2 size={22} color="#16A34A" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={styles.menuCardTitle}>
+                  {orgProfile.clientLabel
+                    ? `Cadastrar & Gerenciar ${orgProfile.clientLabel}s`
+                    : 'Cadastrar & Gerenciar Moradores'}
+                </Text>
+                <Text style={styles.menuCardSubtitle}>
+                  Cadastre unidades, residentes e números de WhatsApp.
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#94A3B8" />
+            </TouchableOpacity>
 
-          {/* Card 4: Logout */}
-          <TouchableOpacity
-            style={styles.settingsLogoutBtn}
-            onPress={signOut}
-            activeOpacity={0.85}
-          >
-            <LogOut size={18} color={colors.statusDenied} />
-            <Text style={styles.settingsLogoutBtnText}>Sair da Conta</Text>
-          </TouchableOpacity>
-        </ScrollView>
+            {/* Card 3: Conexão WhatsApp */}
+            <TouchableOpacity
+              style={styles.menuCard}
+              onPress={() => setActiveTab('whatsapp')}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.menuIconContainer, { backgroundColor: '#EDE9FE' }]}>
+                <MessageSquare size={22} color="#7C3AED" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={styles.menuCardTitle}>Conexão WhatsApp (Baileys)</Text>
+                <Text style={styles.menuCardSubtitle}>
+                  Aparelhos conectados, QR Code ao vivo e status.
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* Card 4: Logout */}
+            <TouchableOpacity
+              style={styles.settingsLogoutBtn}
+              onPress={signOut}
+              activeOpacity={0.85}
+            >
+              <LogOut size={18} color={colors.statusDenied} />
+              <Text style={styles.settingsLogoutBtnText}>Sair da Conta</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
       );
     }
 
@@ -259,7 +314,7 @@ export const DashboardScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Cabeçalho Azul Marinho Profundo */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: topInset }]}>
           <View style={styles.headerTopRow}>
             {/* Avatar + Saudação */}
             <View style={styles.userProfileRow}>
@@ -270,7 +325,9 @@ export const DashboardScreen: React.FC = () => {
                 <Text style={styles.greetingTitle}>
                   Olá, {user?.name ? user.name.split(' ')[0] : 'Porteiro'}
                 </Text>
-                <Text style={styles.greetingSubtitle}>Portaria</Text>
+                <Text style={styles.greetingSubtitle}>
+                  {orgProfile.companyName || 'Portaria Principal'}
+                </Text>
               </View>
             </View>
 

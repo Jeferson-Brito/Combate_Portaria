@@ -15,6 +15,7 @@ import { preAuthorizationRoutes } from './modules/pre-authorizations/pre-authori
 import { reportsRoutes } from './modules/reports/reports.routes.js';
 import { auditRoutes } from './modules/audit/audit.routes.js';
 import { packageRoutes } from './modules/packages/packages.routes.js';
+import { organizationRoutes } from './modules/organizations/organization.routes.js';
 
 export function buildApp() {
   const app = fastify({
@@ -77,6 +78,7 @@ export function buildApp() {
   app.register(reportsRoutes, { prefix: '/api/v1/reports' });
   app.register(auditRoutes, { prefix: '/api/v1/audit' });
   app.register(packageRoutes, { prefix: '/api/v1/packages' });
+  app.register(organizationRoutes, { prefix: '/api/v1/organizations' });
 
   return app;
 }

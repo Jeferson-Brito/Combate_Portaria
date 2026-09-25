@@ -11,7 +11,10 @@ import {
   Alert,
   RefreshControl,
   ScrollView,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Users,
   Plus,
@@ -161,12 +164,13 @@ export const ClientsManagementScreen: React.FC<ClientsManagementScreenProps> = (
     } finally {
       setIsSubmittingClient(false);
     }
-  };
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0) + 14;
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding }]}>
         <View style={styles.headerRow}>
           {onBack && (
             <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>

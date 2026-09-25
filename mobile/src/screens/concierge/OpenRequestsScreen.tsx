@@ -22,6 +22,7 @@ import {
 import { colors } from '../../theme/colors';
 import { api } from '../../config/api';
 import { useRealtime } from '../../contexts/RealtimeContext';
+import { AppHeader } from '../../components/AppHeader';
 
 export interface PendingRequestItem {
   id: string;
@@ -230,6 +231,13 @@ export const OpenRequestsScreen: React.FC<{ hideHeader?: boolean }> = ({ hideHea
 
   return (
     <View style={styles.container}>
+      {!hideHeader && (
+        <AppHeader
+          title="Aguardando Autorização"
+          subtitle="Solicitações pendentes de liberação no WhatsApp"
+          badge={requests.length}
+        />
+      )}
       <FlatList
         data={requests}
         keyExtractor={(item) => item.id}

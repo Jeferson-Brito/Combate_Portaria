@@ -11,6 +11,10 @@ export class PackagesController {
       return reply.status(400).send({ success: false, message: 'destinationId é obrigatório.' });
     }
 
+    if (!body.photoUrl) {
+      return reply.status(400).send({ success: false, message: 'A foto da encomenda é obrigatória para comprovar o recebimento.' });
+    }
+
     try {
       const pkg = await packagesService.create({
         ...body,
@@ -41,14 +45,14 @@ export class PackagesController {
     const conciergeUserId = (req as any).user?.sub || (req as any).user?.id;
     const organizationId = (req as any).user?.organizationId;
     const { id } = req.params as { id: string };
-    const { pickupCode, pickedUpBy } = req.body as { pickupCode: string; pickedUpBy?: string };
+    const { pickupCode, pickedUpBy, directPickup } = (req.body as any) || {};
 
-    if (!pickupCode) {
-      return reply.status(400).send({ success: false, message: 'Código de retirada é obrigatório.' });
+    if (!pickupCode && !directPickup) {
+      return reply.status(400).send({ success: false, message: 'Informe o código de retirada ou confirme a liberação direta.' });
     }
 
     try {
-      const updated = await packagesService.pickup(id, organizationId, conciergeUserId, pickupCode, pickedUpBy);
+      const updated = await packagesService.pickup(id, organizationId, conciergeUserId, pickupCode, pickedUpBy, directPickup);
       return reply.send({ success: true, data: updated, message: 'Encomenda entregue com sucesso!' });
     } catch (err: any) {
       return reply.status(400).send({ success: false, message: err.message });
