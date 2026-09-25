@@ -27,7 +27,8 @@
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -38,6 +39,13 @@
         "expo-camera",
         {
           "cameraPermission": "Permitir que o Combate Portaria tire fotos de visitantes."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0F203D"
         }
       ]
     ]
