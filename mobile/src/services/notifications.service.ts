@@ -1,16 +1,31 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { api } from '../config/api';
 
+// Detecta se está executando no Expo Go
 export const isExpoGo =
   Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
-  (Constants as any).appOwnership === 'expo';
+  (Constants as any).appOwnership === 'expo' ||
+  typeof (Constants as any).expoGoConfig !== 'undefined';
 
-// Configuração padrão de exibição de notificações apenas no app compilado (não no Expo Go)
-if (!isExpoGo) {
+// Carregamento dinâmico: NUNCA faz import estático de 'expo-notifications' no Expo Go
+// porque o módulo executa addPushTokenListener na inicialização e gera erro no SDK 53
+function getNotifications() {
+  if (isExpoGo || Platform.OS === 'web') {
+    return null;
+  }
   try {
-    Notifications.setNotificationHandler({
+    return require('expo-notifications');
+  } catch (e) {
+    return null;
+  }
+}
+
+// Configura o handler no APK compilado
+const NotificationsModule = getNotifications();
+if (NotificationsModule?.setNotificationHandler) {
+  try {
+    NotificationsModule.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowAlert: true,
         shouldPlaySound: true,
@@ -18,14 +33,13 @@ if (!isExpoGo) {
       }),
     });
   } catch (e) {
-    // Ignora erro em ambientes de desenvolvimento
+    // Ignora em caso de indisponibilidade
   }
 }
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (Platform.OS === 'web' || isExpoGo) {
-    // No Expo Go a partir do SDK 53, notificações remotas push são desativadas pela Meta/Google.
-    // Elas funcionam automaticamente na compilação do APK nativo.
+  const Notifications = getNotifications();
+  if (!Notifications || Platform.OS === 'web') {
     return null;
   }
 
@@ -56,7 +70,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     }
 
     // Obtém o token do Expo Push (apenas em APK standalone / development build)
-    const tokenData = await Notifications.getExpoPushTokenAsync().catch((err) => {
+    const tokenData = await Notifications.getExpoPushTokenAsync().catch((err: any) => {
       console.warn('Aviso: getExpoPushTokenAsync:', err.message);
       return null;
     });
@@ -65,7 +79,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
     if (token) {
       console.log('📱 [Notifications] Expo Push Token obtido:', token);
-      // Envia token para o backend
       try {
         await api.post('/users/push-token', { pushToken: token });
       } catch (err) {
@@ -81,7 +94,9 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 }
 
 export async function triggerLocalAlertNotification(title: string, body: string, isAuthorized: boolean) {
-  if (isExpoGo) return;
+  const Notifications = getNotifications();
+  if (!Notifications) return;
+
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
