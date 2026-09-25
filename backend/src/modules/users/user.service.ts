@@ -144,4 +144,51 @@ export class UserService {
 
     return { success: true };
   }
+
+  async updateProfile(userId: string, data: { name?: string; phone?: string; currentPassword?: string; newPassword?: string }) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || user.deletedAt) {
+      throw new AppError('Usuário não encontrado.', 404, 'USER_NOT_FOUND');
+    }
+
+    const updateData: any = {};
+    if (data.name?.trim()) {
+      updateData.name = data.name.trim();
+    }
+    if (data.phone !== undefined) {
+      updateData.phone = data.phone?.trim() || null;
+    }
+
+    if (data.newPassword) {
+      if (data.newPassword.length < 6) {
+        throw new AppError('A nova senha deve ter no mínimo 6 caracteres.', 400, 'INVALID_PASSWORD');
+      }
+      if (data.currentPassword) {
+        const isMatch = await bcrypt.compare(data.currentPassword, user.passwordHash);
+        if (!isMatch) {
+          throw new AppError('Senha atual incorreta.', 400, 'INVALID_CREDENTIALS');
+        }
+      }
+      updateData.passwordHash = await bcrypt.hash(data.newPassword, 12);
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        organizationId: true,
+        name: true,
+        email: true,
+        role: true,
+        phone: true,
+      },
+    });
+
+    return updated;
+  }
 }
+

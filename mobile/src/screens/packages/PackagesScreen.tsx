@@ -183,31 +183,24 @@ export const PackagesScreen: React.FC<PackagesScreenProps> = ({ onBack }) => {
     }
   };
 
-  // Coleta direta: o porteiro marca que o cliente já pegou a encomenda
-  const handleDirectPickup = (item: any) => {
-    const personName = item.client?.name || item.recipientName || 'Cliente';
-    Alert.alert(
-      'Confirmar Retirada',
-      `Confirmar que a entrega ${item.code} já foi coletada e entregue para ${personName}?`,
-      [
-        { text: 'Voltar', style: 'cancel' },
-        {
-          text: 'Confirmar Coleta',
-          onPress: async () => {
-            try {
-              await api.post(`/packages/${item.id}/pickup`, {
-                directPickup: true,
-                pickedUpBy: personName,
-              });
-              Alert.alert('Sucesso! 🟢', 'Entrega finalizada com sucesso.');
-              loadData();
-            } catch (err: any) {
-              Alert.alert('Erro', err.response?.data?.message || 'Falha ao registrar retirada.');
-            }
-          },
-        },
-      ]
-    );
+  // Coleta direta: o porteiro confirma entrega presencial direta
+  const handleConfirmDirectPickup = async () => {
+    if (!selectedPackageForPickup) return;
+    const personName = selectedPackageForPickup.client?.name || selectedPackageForPickup.recipientName || 'Cliente';
+    try {
+      setIsPickingUp(true);
+      await api.post(`/packages/${selectedPackageForPickup.id}/pickup`, {
+        directPickup: true,
+        pickedUpBy: personName,
+      });
+      setSelectedPackageForPickup(null);
+      setInputPickupCode('');
+      loadData();
+    } catch (err: any) {
+      Alert.alert('Erro', err.response?.data?.message || 'Falha ao registrar retirada.');
+    } finally {
+      setIsPickingUp(false);
+    }
   };
 
   // Retirada com validação do código de 4 dígitos
@@ -423,7 +416,10 @@ export const PackagesScreen: React.FC<PackagesScreenProps> = ({ onBack }) => {
                     {/* Botão Principal: O cliente já pegou / coletou */}
                     <TouchableOpacity
                       style={styles.directPickupBtn}
-                      onPress={() => handleDirectPickup(item)}
+                      onPress={() => {
+                        setSelectedPackageForPickup(item);
+                        setInputPickupCode('');
+                      }}
                       activeOpacity={0.85}
                     >
                       <Check size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
@@ -433,15 +429,6 @@ export const PackagesScreen: React.FC<PackagesScreenProps> = ({ onBack }) => {
                     </TouchableOpacity>
 
                     <View style={styles.subActionRow}>
-                      <TouchableOpacity
-                        style={styles.codePickupBtn}
-                        onPress={() => setSelectedPackageForPickup(item)}
-                        activeOpacity={0.8}
-                      >
-                        <KeyRound size={15} color="#1D4ED8" style={{ marginRight: 4 }} />
-                        <Text style={styles.codePickupBtnText}>Inserir Código (4 Dígitos)</Text>
-                      </TouchableOpacity>
-
                       <TouchableOpacity
                         style={styles.resendBtn}
                         onPress={() => handleResendCode(item.id)}
@@ -461,7 +448,10 @@ export const PackagesScreen: React.FC<PackagesScreenProps> = ({ onBack }) => {
 
       {/* Modal: Receber Encomenda com Foto Obrigatória */}
       <Modal visible={isNewModalOpen} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View>
@@ -475,7 +465,11 @@ export const PackagesScreen: React.FC<PackagesScreenProps> = ({ onBack }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 180 }}
+            >
               {/* ÁREA DA FOTO OBRIGATÓRIA */}
               <Text style={styles.label}>Foto da Encomenda * (Obrigatória)</Text>
               {photoUri ? (
@@ -614,49 +608,98 @@ export const PackagesScreen: React.FC<PackagesScreenProps> = ({ onBack }) => {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal: Entregar Pacote com Código */}
-      <Modal visible={!!selectedPackageForPickup} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: 380 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Confirmar Retirada com Código</Text>
-              <TouchableOpacity onPress={() => setSelectedPackageForPickup(null)}>
-                <X size={24} color="#64748B" />
+      {/* Modal: Confirmar Coleta da Encomenda com Código ou Direta */}
+      <Modal visible={!!selectedPackageForPickup} animationType="fade" transparent onRequestClose={() => setSelectedPackageForPickup(null)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlayCenter}
+        >
+          <View style={styles.confirmPopupCard}>
+            <View style={styles.confirmPopupHeader}>
+              <View style={styles.confirmPopupIconCircle}>
+                <Package size={26} color="#16A34A" />
+              </View>
+              <TouchableOpacity
+                onPress={() => setSelectedPackageForPickup(null)}
+                style={styles.confirmPopupCloseBtn}
+                activeOpacity={0.7}
+              >
+                <X size={20} color="#94A3B8" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.pickupHint}>
-              Digite o código de 4 dígitos que o cliente recebeu no WhatsApp para o pacote{' '}
-              <Text style={{ fontWeight: '700' }}>{selectedPackageForPickup?.code}</Text>.
+            <Text style={styles.confirmPopupTitle}>Confirmar Coleta</Text>
+            <Text style={styles.confirmPopupSubtitle}>
+              Entrega para{' '}
+              <Text style={{ fontWeight: '700', color: '#0F172A' }}>
+                {selectedPackageForPickup?.destination?.name || 'Unidade'}
+              </Text>
+              {selectedPackageForPickup?.client?.name ? ` — ${selectedPackageForPickup.client.name}` : ''}
+              {` (${selectedPackageForPickup?.code || ''})`}
             </Text>
 
-            <Text style={styles.label}>Código de 4 Dígitos *</Text>
-            <TextInput
-              style={styles.pickupCodeInput}
-              placeholder="0000"
-              placeholderTextColor="#94A3B8"
-              keyboardType="number-pad"
-              maxLength={4}
-              value={inputPickupCode}
-              onChangeText={setInputPickupCode}
-            />
+            <View style={styles.codeSectionBox}>
+              <Text style={styles.codeSectionLabel}>Código de Retirada (4 dígitos)</Text>
+              <Text style={styles.codeSectionHint}>
+                Solicite o código que o morador recebeu no WhatsApp:
+              </Text>
+              <TextInput
+                style={styles.pickupCodeInput}
+                placeholder="0000"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                maxLength={4}
+                value={inputPickupCode}
+                onChangeText={setInputPickupCode}
+                autoFocus={true}
+              />
+            </View>
 
+            {/* Ação 1: Validar código */}
             <TouchableOpacity
-              style={[styles.submitBtn, isPickingUp && { opacity: 0.7 }]}
+              style={[
+                styles.confirmCodeBtn,
+                (!inputPickupCode || inputPickupCode.length !== 4 || isPickingUp) && { opacity: 0.6 },
+              ]}
               onPress={handleConfirmPickupWithCode}
-              disabled={isPickingUp}
+              disabled={isPickingUp || !inputPickupCode || inputPickupCode.length !== 4}
+              activeOpacity={0.85}
             >
               {isPickingUp ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.submitBtnText}>Validar Código e Liberar</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Check size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.confirmCodeBtnText}>Validar Código e Concluir</Text>
+                </View>
               )}
             </TouchableOpacity>
+
+            {/* Ação 2: Entregar sem código se o morador não tiver celular no momento */}
+            <TouchableOpacity
+              style={styles.directCollectSecondaryBtn}
+              onPress={handleConfirmDirectPickup}
+              disabled={isPickingUp}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.directCollectSecondaryText}>
+                Entregar Sem Código (Coleta Presencial)
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.confirmPopupCancelBtn}
+              onPress={() => setSelectedPackageForPickup(null)}
+              disabled={isPickingUp}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.confirmPopupCancelText}>Voltar</Text>
+            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Modal: Visualizar Foto Grande */}
@@ -1133,18 +1176,131 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 18,
   },
-  pickupCodeInput: {
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  confirmPopupCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  confirmPopupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  confirmPopupIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmPopupCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmPopupTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  confirmPopupSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  codeSectionBox: {
     backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  codeSectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  codeSectionHint: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 10,
+  },
+  pickupCodeInput: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 2,
     borderColor: '#2563EB',
     textAlign: 'center',
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '900',
-    letterSpacing: 10,
+    letterSpacing: 8,
     color: '#0F172A',
+    paddingVertical: 10,
+  },
+  confirmCodeBtn: {
+    backgroundColor: '#16A34A',
+    borderRadius: 12,
     paddingVertical: 14,
-    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  confirmCodeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  directCollectSecondaryBtn: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  directCollectSecondaryText: {
+    color: '#334155',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  confirmPopupCancelBtn: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  confirmPopupCancelText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '600',
   },
   photoModalOverlay: {
     flex: 1,

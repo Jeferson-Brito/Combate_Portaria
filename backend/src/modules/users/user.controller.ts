@@ -127,4 +127,24 @@ export class UserController {
       });
     }
   }
+
+  async updateProfile(request: FastifyRequest, reply: FastifyReply) {
+    try {
+      const body = request.body as any;
+      const updated = await userService.updateProfile(request.user.sub, body || {});
+      return reply.status(200).send({
+        success: true,
+        data: { user: updated },
+      });
+    } catch (err: any) {
+      return reply.status(err.statusCode || 500).send({
+        success: false,
+        error: {
+          code: err.code || 'INTERNAL_ERROR',
+          message: err.message || 'Erro ao atualizar perfil.',
+        },
+      });
+    }
+  }
 }
+

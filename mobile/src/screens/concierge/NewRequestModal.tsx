@@ -8,6 +8,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { X, Send, CircleCheck, ArrowRight, ShieldAlert } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
@@ -142,7 +144,10 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.modalContainer}
+      >
         {/* Modal Header */}
         <View style={styles.header}>
           <Text style={styles.title}>
@@ -153,7 +158,11 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: 160 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           {step === 'form' ? (
             <>
               {/* Seleção do Destino / Cliente */}
@@ -241,7 +250,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
             </View>
           )}
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

@@ -19,6 +19,11 @@ export async function userRoutes(app: FastifyInstance) {
     return reply.status(200).send({ success: true });
   });
 
+  // Atualizar perfil próprio (Nome, Telefone, Foto, Senha) - Aberto a Porteiro, Supervisor e Admin
+  app.patch('/me', {
+    handler: userController.updateProfile.bind(userController),
+  });
+
   // Listar usuários: apenas Admin e Supervisor
   app.get('/', {
     preHandler: [requireRole(['ADMIN', 'SUPERVISOR'])],

@@ -1,9 +1,9 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../../lib/prisma.js';
-import { verifyJwt } from '../../middlewares/verify-jwt.js';
+import { authMiddleware } from '../../middlewares/auth.middleware.js';
 
 export async function organizationRoutes(app: FastifyInstance) {
-  app.addHook('onRequest', verifyJwt);
+  app.addHook('onRequest', authMiddleware);
 
   // Retorna os dados e configurações do perfil do estabelecimento atual
   app.get('/current', async (req: FastifyRequest, reply: FastifyReply) => {

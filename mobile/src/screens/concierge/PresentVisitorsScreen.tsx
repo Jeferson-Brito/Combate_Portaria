@@ -240,7 +240,7 @@ export const PresentVisitorsScreen: React.FC = () => {
       <AppHeader
         title="Visitantes no Local"
         subtitle="Pessoas com entrada registrada atualmente presentes"
-        badge={filteredVisitors.length}
+        badge={visitors.length}
       />
 
       {/* Barra de Busca e Contador */}

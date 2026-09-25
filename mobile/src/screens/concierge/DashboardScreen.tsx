@@ -50,6 +50,8 @@ import { UsersManagementScreen } from '../admin/UsersManagementScreen';
 import { ClientsManagementScreen } from '../admin/ClientsManagementScreen';
 import { OrganizationProfileScreen } from '../admin/OrganizationProfileScreen';
 import { ReportsScreen } from '../reports/ReportsScreen';
+import { ProfileScreen } from '../profile/ProfileScreen';
+import { CustomConfirmModal } from '../../components/CustomConfirmModal';
 import { AppHeader } from '../../components/AppHeader';
 import { useRealtime, RealtimeAlert } from '../../contexts/RealtimeContext';
 
@@ -69,7 +71,14 @@ export const DashboardScreen: React.FC = () => {
     | 'clients_mgmt'
     | 'preauthorizations'
     | 'org_profile'
+    | 'profile'
   >('dashboard');
+  const [requestFilter, setRequestFilter] = useState<'ALL' | 'PENDING' | 'AUTHORIZED' | 'ENTERED'>('ALL');
+  const [confirmEntryModal, setConfirmEntryModal] = useState<{
+    visible: boolean;
+    requestId: string;
+    visitorName: string;
+  }>({ visible: false, requestId: '', visitorName: '' });
   const [orgProfile, setOrgProfile] = useState<{
     companyName?: string;
     unitLabel?: string;
@@ -161,13 +170,22 @@ export const DashboardScreen: React.FC = () => {
     };
   }, [addListener, fetchSummaryAndRequests, fetchOrgProfile]);
 
-  const handleRegisterEntry = async (requestId: string, visitorName: string) => {
+  const handleRegisterEntry = (requestId: string, visitorName: string) => {
+    setConfirmEntryModal({
+      visible: true,
+      requestId,
+      visitorName,
+    });
+  };
+
+  const executeRegisterEntry = async () => {
+    if (!confirmEntryModal.requestId) return;
     try {
-      setEntryProcessingId(requestId);
-      await api.post(`/visit-requests/${requestId}/entry`, {
-        reason: 'Entrada registrada na portaria pelo dashboard',
+      setEntryProcessingId(confirmEntryModal.requestId);
+      await api.post(`/visit-requests/${confirmEntryModal.requestId}/entry`, {
+        reason: 'Entrada física registrada na portaria pelo dashboard',
       });
-      Alert.alert('Sucesso! 🟢', `Entrada de ${visitorName} registrada no local.`);
+      setConfirmEntryModal({ visible: false, requestId: '', visitorName: '' });
       fetchSummaryAndRequests();
     } catch (err: any) {
       Alert.alert('Erro', err.response?.data?.message || 'Falha ao registrar entrada.');
@@ -180,6 +198,13 @@ export const DashboardScreen: React.FC = () => {
   const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 12);
 
   const renderContent = () => {
+    if (activeTab === 'profile') {
+      return (
+        <ProfileScreen
+          onBack={() => setActiveTab(user?.role === 'CONCIERGE' ? 'dashboard' : 'settings')}
+        />
+      );
+    }
     if (activeTab === 'pending') return <OpenRequestsScreen />;
     if (activeTab === 'authorized') return <AuthorizedRequestsScreen />;
     if (activeTab === 'present') return <PresentVisitorsScreen />;
@@ -202,6 +227,10 @@ export const DashboardScreen: React.FC = () => {
     }
 
     if (activeTab === 'settings') {
+      const isConcierge = user?.role === 'CONCIERGE';
+      const isSupervisor = user?.role === 'SUPERVISOR';
+      const isAdmin = user?.role === 'ADMIN';
+
       return (
         <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
           <AppHeader
@@ -214,85 +243,111 @@ export const DashboardScreen: React.FC = () => {
             contentContainerStyle={{ padding: 18, paddingBottom: bottomInset + 80 }}
             showsVerticalScrollIndicator={false}
           >
-            {/* Card 0: Perfil do Estabelecimento / Empresa */}
+            {/* Card 0: Meu Perfil (Todos os usuários, inclusive Porteiro) */}
             <TouchableOpacity
               style={styles.menuCard}
-              onPress={() => setActiveTab('org_profile')}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.menuIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                <Building size={22} color="#D97706" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={styles.menuCardTitle}>Perfil do Estabelecimento / Empresa</Text>
-                <Text style={styles.menuCardSubtitle}>
-                  {orgProfile.companyName
-                    ? `${orgProfile.companyName} (${orgProfile.type || 'Personalizado'})`
-                    : 'Defina o segmento: Residencial, Comercial, Clínica, etc.'}
-                </Text>
-              </View>
-              <ChevronRight size={18} color="#94A3B8" />
-            </TouchableOpacity>
-
-            {/* Card 1: Cadastrar & Gerenciar Porteiros */}
-            <TouchableOpacity
-              style={styles.menuCard}
-              onPress={() => setActiveTab('users_mgmt')}
+              onPress={() => setActiveTab('profile')}
               activeOpacity={0.85}
             >
               <View style={[styles.menuIconContainer, { backgroundColor: '#DBEAFE' }]}>
-                <UserCheck size={22} color="#1D4ED8" />
+                <User size={22} color="#1D4ED8" />
               </View>
               <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={styles.menuCardTitle}>Cadastrar & Gerenciar Porteiros</Text>
+                <Text style={styles.menuCardTitle}>Meu Perfil & Senha</Text>
                 <Text style={styles.menuCardSubtitle}>
-                  Adicione operadores, defina senhas e perfis de acesso.
+                  Altere sua senha de acesso e dados cadastrais.
                 </Text>
               </View>
               <ChevronRight size={18} color="#94A3B8" />
             </TouchableOpacity>
 
-            {/* Card 2: Cadastrar & Gerenciar Destinos / Clientes */}
-            <TouchableOpacity
-              style={styles.menuCard}
-              onPress={() => setActiveTab('clients_mgmt')}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.menuIconContainer, { backgroundColor: '#DCFCE7' }]}>
-                <Building2 size={22} color="#16A34A" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={styles.menuCardTitle}>
-                  {orgProfile.clientLabel
-                    ? `Cadastrar & Gerenciar ${orgProfile.clientLabel}s`
-                    : 'Cadastrar & Gerenciar Moradores'}
-                </Text>
-                <Text style={styles.menuCardSubtitle}>
-                  Cadastre unidades, residentes e números de WhatsApp.
-                </Text>
-              </View>
-              <ChevronRight size={18} color="#94A3B8" />
-            </TouchableOpacity>
+            {/* Apenas Administrador: Perfil da Empresa / Segmento */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={styles.menuCard}
+                onPress={() => setActiveTab('org_profile')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.menuIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                  <Building size={22} color="#D97706" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={styles.menuCardTitle}>Perfil do Estabelecimento / Empresa</Text>
+                  <Text style={styles.menuCardSubtitle}>
+                    {orgProfile.companyName
+                      ? `${orgProfile.companyName} (${orgProfile.type || 'Personalizado'})`
+                      : 'Defina o segmento: Residencial, Comercial, Clínica, etc.'}
+                  </Text>
+                </View>
+                <ChevronRight size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
 
-            {/* Card 3: Conexão WhatsApp */}
-            <TouchableOpacity
-              style={styles.menuCard}
-              onPress={() => setActiveTab('whatsapp')}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.menuIconContainer, { backgroundColor: '#EDE9FE' }]}>
-                <MessageSquare size={22} color="#7C3AED" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={styles.menuCardTitle}>Conexão WhatsApp (Baileys)</Text>
-                <Text style={styles.menuCardSubtitle}>
-                  Aparelhos conectados, QR Code ao vivo e status.
-                </Text>
-              </View>
-              <ChevronRight size={18} color="#94A3B8" />
-            </TouchableOpacity>
+            {/* Supervisor e Administrador: Gerenciar Porteiros */}
+            {(isAdmin || isSupervisor) && (
+              <TouchableOpacity
+                style={styles.menuCard}
+                onPress={() => setActiveTab('users_mgmt')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.menuIconContainer, { backgroundColor: '#EFF6FF' }]}>
+                  <UserCheck size={22} color="#2563EB" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={styles.menuCardTitle}>Cadastrar & Gerenciar Porteiros</Text>
+                  <Text style={styles.menuCardSubtitle}>
+                    Adicione operadores, defina senhas e perfis de acesso.
+                  </Text>
+                </View>
+                <ChevronRight size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
 
-            {/* Card 4: Logout */}
+            {/* Supervisor e Administrador: Gerenciar Clientes / Destinos */}
+            {(isAdmin || isSupervisor) && (
+              <TouchableOpacity
+                style={styles.menuCard}
+                onPress={() => setActiveTab('clients_mgmt')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.menuIconContainer, { backgroundColor: '#DCFCE7' }]}>
+                  <Building2 size={22} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={styles.menuCardTitle}>
+                    {orgProfile.clientLabel
+                      ? `Cadastrar & Gerenciar ${orgProfile.clientLabel}s`
+                      : 'Cadastrar & Gerenciar Moradores'}
+                  </Text>
+                  <Text style={styles.menuCardSubtitle}>
+                    Cadastre unidades, residentes e números de WhatsApp.
+                  </Text>
+                </View>
+                <ChevronRight size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+
+            {/* Apenas Administrador: Conexão WhatsApp */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={styles.menuCard}
+                onPress={() => setActiveTab('whatsapp')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.menuIconContainer, { backgroundColor: '#EDE9FE' }]}>
+                  <MessageSquare size={22} color="#7C3AED" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={styles.menuCardTitle}>Conexão WhatsApp (Baileys)</Text>
+                  <Text style={styles.menuCardSubtitle}>
+                    Aparelhos conectados, QR Code ao vivo e status.
+                  </Text>
+                </View>
+                <ChevronRight size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+
+            {/* Logout */}
             <TouchableOpacity
               style={styles.settingsLogoutBtn}
               onPress={signOut}
@@ -306,18 +361,27 @@ export const DashboardScreen: React.FC = () => {
       );
     }
 
-    // Dashboard Tab Principal
+    // Filtragem das solicitações (Item 1)
+    const filteredRequests = recentRequests.filter((req) => {
+      if (requestFilter === 'ALL') return true;
+      if (requestFilter === 'PENDING') return req.status === 'PENDING';
+      if (requestFilter === 'AUTHORIZED') return req.status === 'AUTHORIZED';
+      if (requestFilter === 'ENTERED') return req.status === 'ENTERED';
+      return true;
+    });
+
+    // Dashboard Tab Principal com Cabeçalho FIXO no Topo (Item 5)
     return (
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset + 80 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Cabeçalho Azul Marinho Profundo */}
+      <View style={{ flex: 1, backgroundColor: '#0F203D' }}>
+        {/* Cabeçalho FIXO no Topo - Não scrola junto com a tela */}
         <View style={[styles.header, { paddingTop: topInset }]}>
           <View style={styles.headerTopRow}>
-            {/* Avatar + Saudação */}
-            <View style={styles.userProfileRow}>
+            {/* Avatar + Saudação (Clicar vai para Meu Perfil) */}
+            <TouchableOpacity
+              style={styles.userProfileRow}
+              onPress={() => setActiveTab('profile')}
+              activeOpacity={0.8}
+            >
               <View style={styles.avatarCircle}>
                 <User size={24} color={colors.white} />
               </View>
@@ -329,7 +393,7 @@ export const DashboardScreen: React.FC = () => {
                   {orgProfile.companyName || 'Portaria Principal'}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
 
             {/* Ações da Direita: Notificações (Sino) & Configurações (Engrenagem) */}
             <View style={styles.headerActions}>
@@ -355,229 +419,243 @@ export const DashboardScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Conteúdo Principal */}
-        <View style={styles.bodyContainer}>
-          {/* Ação Principal: Nova Visita */}
-          <TouchableOpacity
-            style={styles.primaryActionCard}
-            onPress={() => setIsModalOpen(true)}
-            activeOpacity={0.88}
-          >
-            <View style={styles.primaryActionIconBg}>
-              <Plus size={30} color={colors.white} strokeWidth={2.5} />
-            </View>
-            <View style={{ flex: 1, marginLeft: 16 }}>
-              <Text style={styles.primaryActionTitle}>Nova Visita</Text>
-              <Text style={styles.primaryActionSubtitle}>
-                Registrar chegada de visitante ou prestador de serviço
-              </Text>
-            </View>
-            <ChevronRight size={22} color="#94A3B8" />
-          </TouchableOpacity>
-
-          {/* Cards Lado a Lado: Agendados & Encomendas */}
-          <View style={styles.secondaryCardsRow}>
-            {/* Card Agendados */}
+        {/* Conteúdo Rolável Abaixo do Cabeçalho Fixo */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset + 80 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.bodyContainer}>
+            {/* Ação Principal Hero: Nova Visita em Grande Destaque (Item 2) */}
             <TouchableOpacity
-              style={styles.secondaryCard}
-              onPress={() => setActiveTab('preauthorizations')}
-              activeOpacity={0.85}
+              style={styles.heroNewVisitBtn}
+              onPress={() => setIsModalOpen(true)}
+              activeOpacity={0.88}
             >
-              <View style={[styles.secondaryIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                <CalendarCheck size={26} color="#D97706" />
+              <View style={styles.heroNewVisitIconCircle}>
+                <Plus size={32} color="#FFFFFF" strokeWidth={3} />
               </View>
-              <Text style={styles.secondaryCardTitle}>Agendados</Text>
-              <Text style={styles.secondaryCardSubtitle}>Pré-autorizações</Text>
-            </TouchableOpacity>
-
-            {/* Card Encomendas */}
-            <TouchableOpacity
-              style={styles.secondaryCard}
-              onPress={() => setActiveTab('packages')}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.secondaryIconCircle, { backgroundColor: '#EDE9FE' }]}>
-                <Package size={26} color="#7C3AED" />
-                {packagesCount > 0 && (
-                  <View style={styles.secondaryBadge}>
-                    <Text style={styles.secondaryBadgeText}>{packagesCount}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.secondaryCardTitle}>Encomendas</Text>
-              <Text style={styles.secondaryCardSubtitle}>Recebimentos</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Seção: Solicitações de Acesso (Unificada com Pendentes no Topo) */}
-          <View style={styles.listSectionContainer}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Solicitações de Acesso</Text>
-              <View style={styles.statusPillsRow}>
-                {summary.pendingCount > 0 && (
-                  <TouchableOpacity
-                    onPress={() => setActiveTab('pending')}
-                    style={styles.pillPending}
-                    activeOpacity={0.8}
-                  >
-                    <Clock size={12} color="#D97706" style={{ marginRight: 4 }} />
-                    <Text style={styles.pillPendingText}>{summary.pendingCount} pendente(s)</Text>
-                  </TouchableOpacity>
-                )}
-                {summary.authorizedCount > 0 && (
-                  <TouchableOpacity
-                    onPress={() => setActiveTab('authorized')}
-                    style={styles.pillAuthorized}
-                    activeOpacity={0.8}
-                  >
-                    <ShieldCheck size={12} color="#16A34A" style={{ marginRight: 4 }} />
-                    <Text style={styles.pillAuthorizedText}>{summary.authorizedCount} autorizado(s)</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
-            {isLoadingRequests && recentRequests.length === 0 ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#2563EB" />
-                <Text style={styles.loadingRequestsText}>Atualizando solicitações...</Text>
-              </View>
-            ) : recentRequests.length === 0 ? (
-              <View style={styles.emptyRequestsCard}>
-                <Clock size={36} color="#94A3B8" style={{ marginBottom: 8 }} />
-                <Text style={styles.emptyRequestsTitle}>Nenhuma solicitação recente</Text>
-                <Text style={styles.emptyRequestsSubtitle}>
-                  Toque em "+ Nova Visita" para registrar uma nova entrada na portaria.
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <View style={styles.heroNewVisitBadge}>
+                  <Text style={styles.heroNewVisitBadgeText}>REGISTRO RÁPIDO</Text>
+                </View>
+                <Text style={styles.heroNewVisitTitle}>+ Nova Visita</Text>
+                <Text style={styles.heroNewVisitSubtitle}>
+                  Registrar entrada de visitante ou prestador
                 </Text>
               </View>
-            ) : (
-              recentRequests.map((req) => {
-                const isPending = req.status === 'PENDING';
-                const isAuthorized = req.status === 'AUTHORIZED';
-                const isEntered = req.status === 'ENTERED';
-                const isDenied = req.status === 'DENIED';
+              <ChevronRight size={24} color="#FFFFFF" />
+            </TouchableOpacity>
 
-                const timeFormatted = new Date(req.createdAt).toLocaleTimeString('pt-BR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
+            {/* Cards Lado a Lado: Agendados & Encomendas */}
+            <View style={styles.secondaryCardsRow}>
+              {/* Card Agendados */}
+              <TouchableOpacity
+                style={styles.secondaryCard}
+                onPress={() => setActiveTab('preauthorizations')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.secondaryIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                  <CalendarCheck size={24} color="#D97706" />
+                </View>
+                <Text style={styles.secondaryCardTitle}>Agendados</Text>
+                <Text style={styles.secondaryCardSubtitle}>Pré-autorizações</Text>
+              </TouchableOpacity>
 
-                return (
-                  <View
-                    key={req.id}
-                    style={[
-                      styles.requestCard,
-                      isPending && styles.cardPendingBorder,
-                      isAuthorized && styles.cardAuthorizedBorder,
-                      isEntered && styles.cardEnteredBorder,
-                      isDenied && styles.cardDeniedBorder,
-                    ]}
-                  >
-                    {/* Header do Card com Badge */}
-                    <View style={styles.requestCardHeader}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        {isPending && (
-                          <View style={styles.badgePending}>
-                            <Clock size={12} color="#D97706" style={{ marginRight: 4 }} />
-                            <Text style={styles.badgePendingText}>AGUARDANDO MORADOR</Text>
+              {/* Card Encomendas */}
+              <TouchableOpacity
+                style={styles.secondaryCard}
+                onPress={() => setActiveTab('packages')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.secondaryIconCircle, { backgroundColor: '#EDE9FE' }]}>
+                  <Package size={24} color="#7C3AED" />
+                  {packagesCount > 0 && (
+                    <View style={styles.secondaryBadge}>
+                      <Text style={styles.secondaryBadgeText}>{packagesCount}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.secondaryCardTitle}>Encomendas</Text>
+                <Text style={styles.secondaryCardSubtitle}>Recebimentos</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Seção: Solicitações de Acesso com Filtro (Item 1) */}
+            <View style={styles.listSectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Solicitações de Acesso</Text>
+                <Text style={styles.sectionCountText}>
+                  {filteredRequests.length} registro(s)
+                </Text>
+              </View>
+
+              {/* Barra de Filtros: Todos, Aguardando, Autorizados, No Local (Item 1) */}
+              <View style={styles.filterPillsRow}>
+                {[
+                  { key: 'ALL', label: 'Todos', count: recentRequests.length },
+                  { key: 'PENDING', label: 'Aguardando', count: summary.pendingCount },
+                  { key: 'AUTHORIZED', label: 'Autorizados', count: summary.authorizedCount },
+                  { key: 'ENTERED', label: 'No Local', count: summary.presentCount },
+                ].map((pill) => {
+                  const isSelected = requestFilter === pill.key;
+                  return (
+                    <TouchableOpacity
+                      key={pill.key}
+                      style={[styles.filterChip, isSelected && styles.filterChipActive]}
+                      onPress={() => setRequestFilter(pill.key as any)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          isSelected && styles.filterChipTextActive,
+                        ]}
+                      >
+                        {pill.label}
+                      </Text>
+                      {pill.count > 0 && (
+                        <View
+                          style={[
+                            styles.filterChipBadge,
+                            isSelected && styles.filterChipBadgeActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.filterChipBadgeText,
+                              isSelected && styles.filterChipBadgeTextActive,
+                            ]}
+                          >
+                            {pill.count}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {isLoadingRequests && recentRequests.length === 0 ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#2563EB" />
+                  <Text style={styles.loadingRequestsText}>Atualizando solicitações...</Text>
+                </View>
+              ) : filteredRequests.length === 0 ? (
+                <View style={styles.emptyRequestsCard}>
+                  <Clock size={32} color="#94A3B8" style={{ marginBottom: 6 }} />
+                  <Text style={styles.emptyRequestsTitle}>Nenhuma solicitação encontrada</Text>
+                  <Text style={styles.emptyRequestsSubtitle}>
+                    {requestFilter === 'ALL'
+                      ? 'Toque em "+ Nova Visita" para registrar uma nova entrada.'
+                      : 'Nenhuma solicitação neste status no momento.'}
+                  </Text>
+                </View>
+              ) : (
+                /* Cards Compactos e Otimizados (Item 1) */
+                filteredRequests.map((req) => {
+                  const isPending = req.status === 'PENDING';
+                  const isAuthorized = req.status === 'AUTHORIZED';
+                  const isEntered = req.status === 'ENTERED';
+                  const isDenied = req.status === 'DENIED';
+
+                  const timeFormatted = new Date(req.createdAt).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+
+                  const clientName = req.client?.name || req.destination?.name || 'Cliente';
+
+                  return (
+                    <View
+                      key={req.id}
+                      style={[
+                        styles.compactCard,
+                        isPending && styles.compactCardPending,
+                        isAuthorized && styles.compactCardAuthorized,
+                        isEntered && styles.compactCardEntered,
+                        isDenied && styles.compactCardDenied,
+                      ]}
+                    >
+                      <View style={styles.compactCardBody}>
+                        {/* Linha 1: Nome do Visitante + Badge de Status */}
+                        <View style={styles.compactCardHeader}>
+                          <Text style={styles.compactVisitorName} numberOfLines={1}>
+                            {req.visitor?.name || 'Visitante'}
+                          </Text>
+                          <View
+                            style={[
+                              styles.compactBadge,
+                              isPending && styles.compactBadgePending,
+                              isAuthorized && styles.compactBadgeAuthorized,
+                              isEntered && styles.compactBadgeEntered,
+                              isDenied && styles.compactBadgeDenied,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.compactBadgeText,
+                                isPending && styles.compactBadgeTextPending,
+                                isAuthorized && styles.compactBadgeTextAuthorized,
+                                isEntered && styles.compactBadgeTextEntered,
+                                isDenied && styles.compactBadgeTextDenied,
+                              ]}
+                            >
+                              {isPending
+                                ? 'AGUARDANDO'
+                                : isAuthorized
+                                ? 'AUTORIZADO'
+                                : isEntered
+                                ? 'NO LOCAL'
+                                : 'RECUSADO'}
+                            </Text>
                           </View>
-                        )}
-                        {isAuthorized && (
-                          <View style={styles.badgeAuthorized}>
-                            <ShieldCheck size={12} color="#16A34A" style={{ marginRight: 4 }} />
-                            <Text style={styles.badgeAuthorizedText}>AUTORIZADO</Text>
+                        </View>
+
+                        {/* Linha 2: Cliente que está visitando + Horário */}
+                        <View style={styles.compactCardFooter}>
+                          <Text style={styles.compactClientName} numberOfLines={1}>
+                            Visita: <Text style={styles.compactClientHighlight}>{clientName}</Text>
+                          </Text>
+
+                          <View style={styles.compactTimeRow}>
+                            <Clock size={11} color="#94A3B8" style={{ marginRight: 3 }} />
+                            <Text style={styles.compactTimeText}>{timeFormatted}</Text>
                           </View>
-                        )}
-                        {isEntered && (
-                          <View style={styles.badgeEntered}>
-                            <UserCheck size={12} color="#2563EB" style={{ marginRight: 4 }} />
-                            <Text style={styles.badgeEnteredText}>NO LOCAL</Text>
-                          </View>
-                        )}
-                        {isDenied && (
-                          <View style={styles.badgeDenied}>
-                            <CircleX size={12} color="#DC2626" style={{ marginRight: 4 }} />
-                            <Text style={styles.badgeDeniedText}>RECUSADO</Text>
-                          </View>
-                        )}
+                        </View>
                       </View>
 
-                      <Text style={styles.requestCodeText}>{req.code}</Text>
-                    </View>
-
-                    {/* Nome do Visitante */}
-                    <Text style={styles.requestVisitorName}>{req.visitor?.name}</Text>
-
-                    {req.visitor?.company && (
-                      <Text style={styles.requestCompany}>Empresa: {req.visitor.company}</Text>
-                    )}
-
-                    {/* Destino e Morador */}
-                    <View style={styles.requestDestRow}>
-                      <Building size={14} color="#64748B" style={{ marginRight: 6 }} />
-                      <Text style={styles.requestDestText}>
-                        {req.destination?.name} {req.destination?.block ? `(${req.destination.block})` : ''}
-                      </Text>
-                      {req.client?.name && (
-                        <Text style={styles.requestClientText}> • Morador: {req.client.name}</Text>
+                      {/* Botão de Ação Rápida para Liberados */}
+                      {isAuthorized && (
+                        <TouchableOpacity
+                          style={styles.compactEntryBtn}
+                          onPress={() => handleRegisterEntry(req.id, req.visitor?.name)}
+                          disabled={entryProcessingId === req.id}
+                          activeOpacity={0.85}
+                        >
+                          {entryProcessingId === req.id ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <LogIn size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                              <Text style={styles.compactEntryBtnText}>ENTRAR</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
                       )}
                     </View>
-
-                    {/* Veículo (se houver) */}
-                    {req.vehicle?.model && (
-                      <View style={styles.requestMetaRow}>
-                        <Car size={14} color="#64748B" style={{ marginRight: 6 }} />
-                        <Text style={styles.requestMetaText}>
-                          {req.vehicle.model} {req.vehicle.licensePlate ? `• Placa ${req.vehicle.licensePlate}` : ''}
-                        </Text>
-                      </View>
-                    )}
-
-                    {/* Horário */}
-                    <View style={styles.requestMetaRow}>
-                      <Clock size={13} color="#94A3B8" style={{ marginRight: 6 }} />
-                      <Text style={styles.requestTimeText}>Registrado às {timeFormatted}</Text>
-                    </View>
-
-                    {/* Ação Rápida para Autorizados: Registrar Entrada */}
-                    {isAuthorized && (
-                      <TouchableOpacity
-                        style={styles.quickEntryBtn}
-                        onPress={() => handleRegisterEntry(req.id, req.visitor?.name)}
-                        disabled={entryProcessingId === req.id}
-                        activeOpacity={0.85}
-                      >
-                        {entryProcessingId === req.id ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <>
-                            <LogIn size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                            <Text style={styles.quickEntryBtnText}>REGISTRAR ENTRADA</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    )}
-
-                    {/* Ação Rápida para Pendentes: Ver no Aguardando */}
-                    {isPending && (
-                      <TouchableOpacity
-                        style={styles.quickPendingBtn}
-                        onPress={() => setActiveTab('pending')}
-                        activeOpacity={0.85}
-                      >
-                        <Clock size={14} color="#D97706" style={{ marginRight: 6 }} />
-                        <Text style={styles.quickPendingBtnText}>Acompanhar / Reenviar WhatsApp</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     );
   };
+
+  const isConcierge = user?.role === 'CONCIERGE';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -586,7 +664,7 @@ export const DashboardScreen: React.FC = () => {
       <View style={styles.container}>
         {renderContent()}
 
-        {/* Barra de Navegação Inferior: 5 Abas */}
+        {/* Barra de Navegação Inferior: Esconde Relatórios para CONCIERGE (Item 3) */}
         <View style={[styles.bottomTabBar, { paddingBottom: bottomInset }]}>
           {/* 1. Início */}
           <TouchableOpacity
@@ -695,26 +773,28 @@ export const DashboardScreen: React.FC = () => {
             {activeTab === 'present' && <View style={styles.activeTabIndicator} />}
           </TouchableOpacity>
 
-          {/* 5. Relatórios */}
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('reports')}
-            activeOpacity={0.8}
-          >
-            <BarChart3
-              size={22}
-              color={activeTab === 'reports' ? '#2563EB' : '#94A3B8'}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === 'reports' && styles.tabLabelActive,
-              ]}
+          {/* 5. Relatórios - Oculto para Porteiros (Item 3) */}
+          {!isConcierge && (
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => setActiveTab('reports')}
+              activeOpacity={0.8}
             >
-              Relatórios
-            </Text>
-            {activeTab === 'reports' && <View style={styles.activeTabIndicator} />}
-          </TouchableOpacity>
+              <BarChart3
+                size={22}
+                color={activeTab === 'reports' ? '#2563EB' : '#94A3B8'}
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  activeTab === 'reports' && styles.tabLabelActive,
+                ]}
+              >
+                Relatórios
+              </Text>
+              {activeTab === 'reports' && <View style={styles.activeTabIndicator} />}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Modal Nova Visita */}
@@ -737,11 +817,25 @@ export const DashboardScreen: React.FC = () => {
             if (alert.type === 'AUTHORIZED') {
               setActiveTab('authorized');
             } else if (alert.type === 'DENIED') {
-              setActiveTab('reports');
+              if (!isConcierge) setActiveTab('reports');
+              else setActiveTab('dashboard');
             } else {
               setActiveTab('pending');
             }
           }}
+        />
+
+        {/* Custom Confirmation Modal para Entrada (Item 7) */}
+        <CustomConfirmModal
+          visible={confirmEntryModal.visible}
+          type="success"
+          title="Confirmar Entrada"
+          message={`Confirmar que ${confirmEntryModal.visitorName} entrou no local agora?`}
+          confirmText="Confirmar Entrada"
+          cancelText="Voltar"
+          isLoading={!!entryProcessingId}
+          onConfirm={executeRegisterEntry}
+          onCancel={() => setConfirmEntryModal({ visible: false, requestId: '', visitorName: '' })}
         />
       </View>
     </SafeAreaView>
@@ -827,57 +921,73 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
 
-  // Card Ação Principal: Nova Visita
-  primaryActionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+  // Botão de Grande Destaque Hero: Nova Visita (Item 2)
+  heroNewVisitBtn: {
+    backgroundColor: '#1E3A8A', // Azul Real Noturno Profundo
+    borderRadius: 18,
     padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#3B82F6', // Borda iluminada
+    shadowColor: '#1D4ED8',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  primaryActionIconBg: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  heroNewVisitIconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowRadius: 5,
     elevation: 4,
   },
-  primaryActionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+  heroNewVisitBadge: {
+    backgroundColor: '#F59E0B', // Âmbar Dourado Vibrante
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
     marginBottom: 4,
   },
-  primaryActionSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    lineHeight: 18,
+  heroNewVisitBadgeText: {
+    color: '#0F172A',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
   },
+  heroNewVisitTitle: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  heroNewVisitSubtitle: {
+    fontSize: 12,
+    color: '#BFDBFE',
+    marginTop: 2,
+  },
+
+  // Cards Lado a Lado: Agendados & Encomendas
   secondaryCardsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
-    marginBottom: 18,
+    marginBottom: 16,
   },
   secondaryCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#0F172A',
@@ -889,12 +999,12 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   secondaryIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
     position: 'relative',
   },
   secondaryBadge: {
@@ -914,254 +1024,239 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   secondaryCardTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
   },
   secondaryCardSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
   },
 
-  // Seção da Lista Unificada de Solicitações
+  // Seção da Lista de Solicitações com Filtro (Item 1)
   listSectionContainer: {
-    marginTop: 6,
+    marginTop: 4,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
-  statusPillsRow: {
+  sectionCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+
+  // Barra de Filtros (Item 1)
+  filterPillsRow: {
     flexDirection: 'row',
     gap: 6,
+    marginBottom: 12,
   },
-  pillPending: {
+  filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  pillPendingText: {
-    fontSize: 11,
+  filterChipActive: {
+    backgroundColor: '#0F203D',
+    borderColor: '#0F203D',
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
     fontWeight: '700',
-    color: '#D97706',
   },
-  pillAuthorized: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+  filterChipBadge: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginLeft: 5,
   },
-  pillAuthorizedText: {
-    fontSize: 11,
+  filterChipBadgeActive: {
+    backgroundColor: '#2563EB',
+  },
+  filterChipBadgeText: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#16A34A',
+    color: '#475569',
   },
+  filterChipBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+
   loadingContainer: {
-    paddingVertical: 24,
+    paddingVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingRequestsText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
     marginTop: 6,
   },
   emptyRequestsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    padding: 24,
+    padding: 22,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   emptyRequestsTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#334155',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   emptyRequestsSubtitle: {
     fontSize: 12,
     color: '#64748B',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 16,
   },
-  requestCard: {
+
+  // Cards Compactos de Solicitação (Item 1: caber 4 a 5 na tela)
+  compactCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 15,
-    marginBottom: 10,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderLeftWidth: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  cardPendingBorder: {
+  compactCardPending: {
     borderLeftColor: '#D97706',
   },
-  cardAuthorizedBorder: {
+  compactCardAuthorized: {
     borderLeftColor: '#16A34A',
   },
-  cardEnteredBorder: {
+  compactCardEntered: {
     borderLeftColor: '#2563EB',
   },
-  cardDeniedBorder: {
+  compactCardDenied: {
     borderLeftColor: '#DC2626',
   },
-  requestCardHeader: {
+  compactCardBody: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  compactCardHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 3,
   },
-  badgePending: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgePendingText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#D97706',
-  },
-  badgeAuthorized: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeAuthorizedText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#16A34A',
-  },
-  badgeEntered: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DBEAFE',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeEnteredText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#2563EB',
-  },
-  badgeDenied: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeDeniedText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#DC2626',
-  },
-  requestCodeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#94A3B8',
-  },
-  requestVisitorName: {
-    fontSize: 16,
+  compactVisitorName: {
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
-    marginBottom: 2,
+    flex: 1,
+    marginRight: 6,
   },
-  requestCompany: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 6,
+  compactBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  requestDestRow: {
+  compactBadgePending: {
+    backgroundColor: '#FEF3C7',
+  },
+  compactBadgeAuthorized: {
+    backgroundColor: '#DCFCE7',
+  },
+  compactBadgeEntered: {
+    backgroundColor: '#DBEAFE',
+  },
+  compactBadgeDenied: {
+    backgroundColor: '#FEE2E2',
+  },
+  compactBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  compactBadgeTextPending: {
+    color: '#D97706',
+  },
+  compactBadgeTextAuthorized: {
+    color: '#16A34A',
+  },
+  compactBadgeTextEntered: {
+    color: '#2563EB',
+  },
+  compactBadgeTextDenied: {
+    color: '#DC2626',
+  },
+  compactCardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    marginTop: 2,
+    justifyContent: 'space-between',
   },
-  requestDestText: {
-    fontSize: 13,
+  compactClientName: {
+    fontSize: 12,
+    color: '#64748B',
+    flex: 1,
+    marginRight: 8,
+  },
+  compactClientHighlight: {
     fontWeight: '700',
     color: '#1E293B',
   },
-  requestClientText: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  requestMetaRow: {
+  compactTimeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 3,
   },
-  requestMetaText: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  requestTimeText: {
+  compactTimeText: {
     fontSize: 11,
     color: '#94A3B8',
   },
-  quickEntryBtn: {
+  compactEntryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: '#16A34A',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: 8,
-    paddingVertical: 10,
-    marginTop: 10,
     shadowColor: '#16A34A',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
-    shadowRadius: 3,
+    shadowRadius: 2,
     elevation: 2,
   },
-  quickEntryBtnText: {
+  compactEntryBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  quickPendingBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 8,
-    paddingVertical: 8,
-    marginTop: 10,
-  },
-  quickPendingBtnText: {
-    color: '#D97706',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
   },
 
   // Barra de Navegação Inferior

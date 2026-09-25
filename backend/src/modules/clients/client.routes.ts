@@ -23,9 +23,9 @@ export async function clientRoutes(app: FastifyInstance) {
     handler: clientController.getById.bind(clientController),
   });
 
-  // Criar cliente (Admin, Supervisor, Porteiro)
+  // Criar cliente (Admin, Supervisor)
   app.post('/', {
-    preHandler: [requireRole(['ADMIN', 'SUPERVISOR', 'CONCIERGE'])],
+    preHandler: [requireRole(['ADMIN', 'SUPERVISOR'])],
     handler: clientController.create.bind(clientController),
   });
 

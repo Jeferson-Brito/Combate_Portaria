@@ -169,43 +169,6 @@ export const LoginScreen: React.FC = () => {
             )}
           </TouchableOpacity>
 
-          {/* Divisor "CONTAS DE TESTE RÁPIDO:" */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>CONTAS DE TESTE RÁPIDO:</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* 3 Botões de Contas Rápidas */}
-          <View style={styles.quickButtonsRow}>
-            <TouchableOpacity
-              style={styles.quickBtn}
-              onPress={() => fillQuickCredentials('porteiro@grupocombate.com.br', 'Porteiro@2026')}
-              activeOpacity={0.75}
-            >
-              <User size={15} color={colors.textPrimary} style={{ marginRight: 4 }} />
-              <Text style={styles.quickBtnText}>Porteiro</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickBtn}
-              onPress={() => fillQuickCredentials('supervisor@grupocombate.com.br', 'Supervisor@2026')}
-              activeOpacity={0.75}
-            >
-              <ShieldCheck size={15} color={colors.textPrimary} style={{ marginRight: 4 }} />
-              <Text style={styles.quickBtnText}>Supervisor</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickBtn}
-              onPress={() => fillQuickCredentials('admin@grupocombate.com.br', 'Combate@2026')}
-              activeOpacity={0.75}
-            >
-              <Settings size={15} color={colors.textPrimary} style={{ marginRight: 4 }} />
-              <Text style={styles.quickBtnText}>Admin</Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Rodapé institucional */}
           <Text style={styles.footerText}>
             Grupo Combate Segurança e Tecnologia © 2026
