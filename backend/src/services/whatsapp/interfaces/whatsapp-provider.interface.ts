@@ -30,9 +30,13 @@ export interface ReminderMessageData {
 }
 
 export interface IncomingMessageEvent {
-  fromPhone: string; // Número no formato E.164: ex. 5511999998888
+  fromPhone: string; // Número no formato E.164 ou dígitos do LID
+  fromJid?: string; // remoteJid completo (ex: 5583993858515@s.whatsapp.net ou 254103234056367@lid)
   text: string;
   timestamp: Date;
+  pushName?: string;
+  quotedCode?: string;
+  quotedText?: string;
   rawMessage?: any;
 }
 

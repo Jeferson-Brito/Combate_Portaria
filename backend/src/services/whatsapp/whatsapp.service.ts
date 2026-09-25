@@ -93,34 +93,83 @@ export class WhatsAppService {
     const isAuthorize =
       rawText === '1' ||
       rawText.startsWith('1 ') ||
+      rawText.startsWith('1-') ||
+      rawText.startsWith('1.') ||
       rawText === 'SIM' ||
       rawText === 'AUTORIZAR' ||
       rawText === 'PODE ENTRAR' ||
       rawText === 'LIBERADO' ||
-      rawText === 'LIBERAR';
+      rawText === 'LIBERAR' ||
+      rawText.includes('👍') ||
+      rawText.includes('✅');
 
     const isDeny =
       rawText === '2' ||
       rawText.startsWith('2 ') ||
+      rawText.startsWith('2-') ||
+      rawText.startsWith('2.') ||
       rawText === 'NAO' ||
       rawText === 'NÃO' ||
       rawText === 'RECUSAR' ||
-      rawText === 'NEGAR';
+      rawText === 'NEGAR' ||
+      rawText === 'N' ||
+      rawText.includes('👎') ||
+      rawText.includes('❌');
 
     if (!isAuthorize && !isDeny) {
+      console.log(`ℹ️ [WhatsAppService] Mensagem ignorada (não é autorizar 1 nem recusar 2): "${rawText}"`);
       return; // Mensagem irrelevante ou não estruturada
     }
 
-    // Localiza o cliente pelo telefone
-    const client = await prisma.client.findFirst({
+    // 1. Tenta localizar o cliente pelo telefone
+    let client = await prisma.client.findFirst({
       where: {
         organizationId,
-        whatsappNumber: { contains: cleanPhone.slice(-8) }, // Busca pelos últimos dígitos
+        whatsappNumber: { contains: cleanPhone.slice(-8) }, // Busca pelos últimos 8 dígitos
         deletedAt: null,
       },
     });
 
+    // 2. Se não encontrou pelo telefone (ex: mensagem veio de um @lid WhatsApp)
     if (!client) {
+      console.log(`🔍 [WhatsAppService] Telefone ${cleanPhone} não encontrado diretamente. Buscando solicitações pendentes...`);
+
+      // Se a resposta citou uma mensagem anterior com código
+      if (event.quotedCode) {
+        const reqByCode = await prisma.visitRequest.findFirst({
+          where: {
+            organizationId,
+            code: { contains: event.quotedCode },
+            status: 'PENDING',
+          },
+          include: { client: true },
+        });
+        if (reqByCode?.client) {
+          client = reqByCode.client;
+          console.log(`🎯 [WhatsAppService] Cliente ${client.name} identificado pelo código citado: ${event.quotedCode}`);
+        }
+      }
+
+      // Se ainda não encontrou, busca a solicitação PENDING mais recente desta organização
+      if (!client) {
+        const recentPending = await prisma.visitRequest.findFirst({
+          where: {
+            organizationId,
+            status: 'PENDING',
+          },
+          include: { client: true },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (recentPending?.client) {
+          client = recentPending.client;
+          console.log(`🎯 [WhatsAppService] Cliente ${client.name} identificado pela solicitação pendente mais recente (${recentPending.code})`);
+        }
+      }
+    }
+
+    if (!client) {
+      console.warn(`⚠️ [WhatsAppService] Nenhum cliente com solicitação pendente encontrado para a mensagem.`);
       return;
     }
 
@@ -140,6 +189,7 @@ export class WhatsAppService {
     });
 
     if (!pendingRequest) {
+      console.log(`ℹ️ [WhatsAppService] Cliente ${client.name} não possui solicitações pendentes no momento.`);
       return; // Nenhuma solicitação pendente para este cliente
     }
 
@@ -207,8 +257,9 @@ export class WhatsAppService {
         ? `✅ *Entrada Autorizada!*\n\nA liberação de *${pendingRequest.visitor.name}* foi confirmada com sucesso e a portaria já foi notificada para permitir o acesso.`
         : `❌ *Entrada Recusada!*\n\nA recusa da visita de *${pendingRequest.visitor.name}* foi registrada com sucesso e a portaria não permitirá a entrada.`;
 
-      await provider.sendMessage(client.whatsappNumber, confirmationMsg);
-      console.log(`📤 [WhatsAppService] Resposta de confirmação enviada para ${client.name} (${client.whatsappNumber})`);
+      const targetDestination = event.fromJid || client.whatsappNumber;
+      await provider.sendMessage(targetDestination, confirmationMsg);
+      console.log(`📤 [WhatsAppService] Resposta de confirmação enviada para ${client.name} (${targetDestination})`);
     } catch (confErr: any) {
       console.warn(`Aviso: falha ao enviar confirmação WhatsApp para ${client.name}:`, confErr?.message || confErr);
     }

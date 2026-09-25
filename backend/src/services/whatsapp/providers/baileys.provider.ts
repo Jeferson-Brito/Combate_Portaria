@@ -113,18 +113,65 @@ export class BaileysProvider implements IWhatsAppProvider {
 
         const fromPhone = remoteJid.replace(/[^0-9]/g, '');
 
-        const text =
-          msg.message.conversation ||
-          msg.message.extendedTextMessage?.text ||
-          msg.message.buttonsResponseMessage?.selectedButtonId ||
-          '';
+        let message = msg.message;
+        // Desempacota mensagens encapsuladas (ephemeralMessage, viewOnce, editedMessage, documentWithCaption)
+        while (
+          message.ephemeralMessage?.message ||
+          message.viewOnceMessage?.message ||
+          message.viewOnceMessageV2?.message ||
+          message.documentWithCaptionMessage?.message ||
+          (message as any).editedMessage?.message?.protocolMessage?.editedMessage
+        ) {
+          message =
+            message.ephemeralMessage?.message ||
+            message.viewOnceMessage?.message ||
+            message.viewOnceMessageV2?.message ||
+            message.documentWithCaptionMessage?.message ||
+            (message as any).editedMessage?.message?.protocolMessage?.editedMessage;
+        }
 
-        console.log(`📩 [Baileys] Mensagem recebida de ${remoteJid} (${fromPhone}): "${text}"`);
+        const text = (
+          message.conversation ||
+          message.extendedTextMessage?.text ||
+          message.buttonsResponseMessage?.selectedButtonId ||
+          message.buttonsResponseMessage?.selectedDisplayText ||
+          message.templateButtonReplyMessage?.selectedId ||
+          message.templateButtonReplyMessage?.selectedDisplayText ||
+          message.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson ||
+          message.listResponseMessage?.singleSelectReply?.selectedRowId ||
+          message.reactionMessage?.text ||
+          ''
+        ).trim();
+
+        // Extrai mensagem citada (se respondeu citando)
+        const context = message.extendedTextMessage?.contextInfo;
+        const quotedMsg = context?.quotedMessage;
+        let quotedText = '';
+        if (quotedMsg) {
+          quotedText = (
+            quotedMsg.conversation ||
+            quotedMsg.extendedTextMessage?.text ||
+            ''
+          ).trim();
+        }
+
+        // Tenta achar código na citação (ex: #VIS-12345 ou 123456)
+        let quotedCode: string | undefined;
+        if (quotedText) {
+          const match = quotedText.match(/#?([A-Z0-9]{4,8})/);
+          if (match) quotedCode = match[1];
+        }
+
+        console.log(`📩 [Baileys] Mensagem recebida de ${remoteJid} (${fromPhone}): "${text}" (pushName: ${msg.pushName || 'N/A'})`);
 
         if (text && text.trim().length > 0) {
           const event: IncomingMessageEvent = {
             fromPhone,
+            fromJid: remoteJid,
             text: text.trim(),
+            pushName: msg.pushName || undefined,
+            quotedCode,
+            quotedText: quotedText || undefined,
             timestamp: new Date((msg.messageTimestamp as number) * 1000 || Date.now()),
             rawMessage: msg,
           };
@@ -260,7 +307,7 @@ export class BaileysProvider implements IWhatsAppProvider {
       throw new Error('WhatsApp não está conectado no momento.');
     }
 
-    const jid = await this.resolveJid(toPhone);
+    const jid = toPhone.includes('@') ? toPhone : await this.resolveJid(toPhone);
     console.log(`🚀 [Baileys] Enviando mensagem de texto para JID: ${jid}...`);
     const sent = await this.sock.sendMessage(jid, { text });
     console.log(`✅ [Baileys] Mensagem enviada com sucesso! ID: ${sent?.key?.id}`);
